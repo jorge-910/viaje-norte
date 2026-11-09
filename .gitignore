@@ -1,0 +1,11 @@
+# Datos personales: nunca se suben
+billetes/
+alojamientos/
+VIAJE.md
+privado/
+viaje-privado.json
+*.pdf
+
+# Local
+.claude/
+.DS_Store
