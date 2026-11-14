@@ -4,7 +4,8 @@
 const TRANSPORT = ['train', 'bus', 'flight'];
 /* Minutos que hay que estar antes en la estación o el aeropuerto. */
 const BOARD_BUFFER = { train: 10, bus: 15, flight: 120 };
-const POINT_LEN = 15; // duración por defecto de un evento sin hora de fin
+const POINT_LEN = 15;
+const LATE_ARRIVAL = 22 * 60; // a partir de esta hora, confirmar la entrada con el alojamiento // duración por defecto de un evento sin hora de fin
 
 function toMin(hhmm) {
   if (!hhmm) return null;
@@ -102,7 +103,8 @@ function analyzeDay(day, allEvents, stays) {
       } else if (eta < from) {
         margins.push({ label: `Espera hasta el check-in de ${stayName(st)}`, value: from - eta, sev: from - eta > 90 ? 'warn' : 'ok', detail: `Llegas sobre las ${fromMin(eta)} y el check-in abre a las ${st.checkinFrom}: deja la mochila o espera.` });
       } else {
-        margins.push({ label: `Llegada a ${stayName(st)}`, value: to - eta, sev: to - eta < 30 ? 'warn' : 'ok', detail: `Llegas sobre las ${fromMin(eta)}; check-in de ${st.checkinFrom} a ${st.checkinTo}.` });
+        margins.push({ label: `Llegada a ${stayName(st)}`, value: to - eta, sev: to - eta < 30 || eta >= LATE_ARRIVAL ? 'warn' : 'ok', detail: `Llegas sobre las ${fromMin(eta)}; check-in ${st.checkinTo === '23:59' ? 'desde las ' + st.checkinFrom : 'de ' + st.checkinFrom + ' a ' + st.checkinTo}.` });
+        if (eta >= LATE_ARRIVAL) add('warn', `${stayName(st)}: llegas sobre las ${fromMin(eta)} (llegada a las ${arr.end}). Confirma con el alojamiento la entrada tardía.`, [ci.id, arr.id], 'checkin');
       }
       if (ciT < eta) add('bad', `El check-in de ${stayName(st)} está a las ${ci.start}, pero no llegas hasta las ${fromMin(eta)}.`, [ci.id, arr.id]);
     }

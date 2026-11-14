@@ -17,7 +17,7 @@ const TRIP = {
    llegan con el JSON privado. access = minutos aprox. entre estación/aeropuerto y alojamiento.
    checkinFrom/checkinTo = null: horario de entrada pendiente de confirmar. */
 const STAYS = {
-  donostia1: { city: 'donostia',  checkinDay: '2026-11-20', checkinFrom: null,    checkinTo: null,    checkoutDay: '2026-11-21', checkoutBy: '11:00', access: 15 },
+  donostia1: { city: 'donostia',  checkinDay: '2026-11-20', checkinFrom: '15:00', checkinTo: '23:59', checkoutDay: '2026-11-21', checkoutBy: '11:00', access: 15 },
   donostia2: { city: 'donostia',  checkinDay: '2026-11-21', checkinFrom: '14:00', checkinTo: '18:00', checkoutDay: '2026-11-22', checkoutBy: '11:00', access: 12 },
   bilbao:    { city: 'bilbao',    checkinDay: '2026-11-22', checkinFrom: '16:00', checkinTo: '22:00', checkoutDay: '2026-11-23', checkoutBy: '11:00', access: 20 },
   santander: { city: 'santander', checkinDay: '2026-11-23', checkinFrom: '14:00', checkinTo: '23:30', checkoutDay: '2026-11-24', checkoutBy: '12:00', access: 25 },
@@ -30,9 +30,9 @@ const STAYS = {
    highlights.at = minutos desde la salida (se recalcula si cambias la hora). */
 const TRIPS = {
   m1: {
-    mode: 'bus', from: 'Salou', to: 'Donostia', service: 'Monbus',
-    cancel: 'Billete aparte del abono: condiciones de cambio según el billete.',
-    route: 'Recorrido exacto pendiente del billete. Anochece hacia las 17:45, así que casi todo el viaje es de noche: lleva cena.',
+    mode: 'bus', from: 'Salou', to: 'Donostia', service: 'Monbus, con Abono Único',
+    cancel: 'El billete no indica plazo de cambio: compruébalo en monbus.es. Si no lo usas, anúlalo con margen como el resto del abono.',
+    route: 'El billete no detalla el recorrido. Anochece hacia las 17:45, así que casi todo el viaje es de noche: lleva cena.',
     highlights: [
       { at: 20, text: 'Camp de Tarragona y subida hacia el interior' },
       { at: 90, text: 'Últimas luces del día sobre la llanura (anochece hacia las 17:45)' },

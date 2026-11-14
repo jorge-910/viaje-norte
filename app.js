@@ -179,12 +179,12 @@ async function forgetPrivate() {
   applyPrivate(null);
   save(); reanalyze(); render(); toast('Datos privados borrados de este dispositivo.');
 }
-function pdfLink(path, label, cls = 'btn') {
+function pdfLink(path, label, cls = 'btn btn--gray') {
   const u = path && PDF_URLS[path];
   return u ? `<a class="${cls}" href="${u}" target="_blank">${label}</a>` : `<button class="${cls}" disabled>${label} (${path ? 'no importado' : 'pendiente'})</button>`;
 }
 const privateCTA = () => PRIVATE ? '' : `<div class="card"><p style="margin:0 0 10px">Los localizadores, los PDF y los alojamientos no están en la web. Importa tu archivo <b>viaje-privado.json</b>: se guarda solo en este dispositivo.</p>
-  <button class="btn primary block" data-act="import">Importar datos privados</button></div>`;
+  <button class="btn btn--block" data-act="import">Importar datos privados</button></div>`;
 
 function countdownParts(ms) {
   ms = Math.max(0, ms);
@@ -223,7 +223,8 @@ function cityOfDay(day) {
   const last = Object.values(STAYS).find(s => s.checkoutDay === day);
   return last ? last.city : 'donostia';
 }
-function checkinWindow(s) { return s.checkinFrom ? `Check-in ${s.checkinFrom}–${s.checkinTo}` : 'Horario de entrada pendiente de confirmar'; }
+function windowText(s) { return !s.checkinFrom ? 'horario pendiente' : s.checkinTo === '23:59' ? `desde ${s.checkinFrom}` : `${s.checkinFrom}–${s.checkinTo}`; }
+function checkinWindow(s) { return s.checkinFrom ? `Check-in ${windowText(s)}` : 'Horario de entrada pendiente de confirmar'; }
 const marginVal = v => v == null ? '—' : fmtDur(v);
 function evSub(e) {
   const parts = [];
@@ -266,7 +267,7 @@ function eventRow(e, { showCheck = true } = {}) {
   const past = evDate(e, 'end') < n;
   const f = flagged(e.id);
   const minor = ['work', 'note'].includes(e.type);
-  const cls = ['ev', 't-' + e.type, e.done && 'done', past && 'past', f === 'bad' && 'flag', f === 'warn' && 'flag-warn', minor && 'minor'].filter(Boolean).join(' ');
+  const cls = ['ev', 'k-' + e.type, e.done && 'done', past && 'past', f === 'bad' && 'flag', f === 'warn' && 'flag-warn', minor && 'minor'].filter(Boolean).join(' ');
   return `<li class="${cls}" data-ev="${e.id}">
     <div class="ev-time">${esc(e.start)}${e.end ? `<small>${esc(e.end)}</small>` : ''}</div>
     <div class="ev-rail"><i></i></div>
@@ -318,7 +319,7 @@ function renderHoy() {
   if (current) {
     const total = evDate(current, 'end') - evDate(current);
     const pct = Math.min(100, Math.max(0, (n - evDate(current)) / total * 100));
-    html += `<div class="hero t-${current.type}" data-ev="${current.id}">
+    html += `<div class="hero k-${current.type}" data-ev="${current.id}">
       <div class="hero-label">En curso · ${TYPES[current.type]}</div>
       <div class="hero-title">${esc(current.title)}</div>
       <div class="hero-meta">${esc(evSub(current))}</div>
@@ -371,9 +372,9 @@ function renderPlan() {
   const today = isoDay(now());
   if (!openDays) openDays = new Set([today >= TRIP.start && today <= TRIP.end ? today : TRIP.start]);
   let html = `<div class="toolbar">
-    <button class="btn small" data-act="export">Exportar</button>
-    <button class="btn small" data-act="import">Importar</button>
-    <button class="btn small" data-act="reset">Restaurar</button>
+    <button class="btn btn--gray btn--sm" data-act="export">Exportar</button>
+    <button class="btn btn--gray btn--sm" data-act="import">Importar</button>
+    <button class="btn btn--gray btn--sm" data-act="reset">Restaurar</button>
   </div>`;
   tripDays().forEach(day => {
     const a = analysis[day];
@@ -389,7 +390,7 @@ function renderPlan() {
         ${issuesHTML(a.issues)}
         ${marginsHTML(day)}
         <div style="margin-top:8px">${timelineHTML(day, day === today)}</div>
-        <button class="btn block" data-add="${day}" style="margin-top:8px">+ Añadir evento</button>
+        <button class="btn btn--gray btn--block" data-add="${day}" style="margin-top:8px">+ Añadir evento</button>
       </div>
     </details>`;
   });
@@ -405,7 +406,7 @@ function renderCiudad() {
   const stayIds = [].concat(c.stay || []);
   const chips = Object.entries(CITIES).map(([k, v]) =>
     `<button data-city="${k}" aria-pressed="${k === currentCity}">${esc(v.name.split('-')[0].replace('València', 'Valencia'))}</button>`).join('');
-  const linkList = (items, city) => `<ul class="list link-list">${items.map(it =>
+  const linkList = (items, city) => `<ul class="plain-list link-list">${items.map(it =>
     `<li>${pin}<a href="${mapsUrl(it.replace(/\(.*?\)/g, '') + ', ' + city)}" target="_blank" rel="noopener">${esc(it)}</a></li>`).join('')}</ul>`;
   return `<div class="chips">${chips}</div>
     <div class="city-name">${esc(c.name)}</div>
@@ -416,14 +417,14 @@ function renderCiudad() {
       <div style="font-weight:600">${esc(stayName(st))}</div>
       ${st.address ? `<div class="muted small">${esc(st.address)}</div>` : ''}
       <dl class="kv">
-        <dt>Check-in</dt><dd>${fmtDay(st.checkinDay)}, ${st.checkinFrom ? st.checkinFrom + '–' + st.checkinTo : 'horario pendiente'}</dd>
+        <dt>Check-in</dt><dd>${fmtDay(st.checkinDay)}, ${windowText(st)}</dd>
         <dt>Check-out</dt><dd>${fmtDay(st.checkoutDay)}, hasta ${st.checkoutBy}</dd>
         ${st.phone ? `<dt>Teléfono</dt><dd><a href="tel:${st.phone.replace(/\s/g, '')}">${esc(st.phone)}</a></dd>` : ''}
         ${st.price ? `<dt>Precio</dt><dd>${esc(st.price)}</dd>` : ''}
       </dl>
       ${st.notes ? `<p class="small muted" style="margin:0 0 12px">${esc(st.notes)}</p>` : ''}
       ${st.address ? `<div class="btn-row">
-        <a class="btn primary" href="${mapsUrl(st.name + ', ' + st.address, st.lat, st.lng)}" target="_blank" rel="noopener">Abrir en Maps</a>
+        <a class="btn" href="${mapsUrl(st.name + ', ' + st.address, st.lat, st.lng)}" target="_blank" rel="noopener">Abrir en Maps</a>
         ${pdfLink(st.pdf, 'Reserva PDF')}
       </div>` : `<p class="small muted" style="margin:0">Importa tus datos privados para ver la dirección, el teléfono y la reserva.</p>`}
     </div>`).join('')}
@@ -432,9 +433,9 @@ function renderCiudad() {
     <h2>Comer barato <span class="tag-ori">orientativo</span></h2>
     <div class="card">${linkList(c.eat, c.name)}</div>
     <h2>Historia</h2>
-    <div class="card"><ul class="list prose">${c.history.map(h => `<li>${esc(h)}</li>`).join('')}</ul></div>
+    <div class="card"><ul class="plain-list prose">${c.history.map(h => `<li>${esc(h)}</li>`).join('')}</ul></div>
     <h2>Curiosidades</h2>
-    <div class="card"><ul class="list prose">${c.facts.map(h => `<li>${esc(h)}</li>`).join('')}</ul></div>
+    <div class="card"><ul class="plain-list prose">${c.facts.map(h => `<li>${esc(h)}</li>`).join('')}</ul></div>
     <p class="note">Horarios de apertura y precios sin comprobar: míralos antes de ir.</p>`;
 }
 
@@ -451,7 +452,7 @@ function renderTrayectos() {
       const when = new Date(dep.getTime() + h.at * 60000);
       return `<li class="${when < n ? 'passed' : ''}"><time>${fromMin(toMin(e.start) + h.at)}</time><span>${esc(h.text)}</span></li>`;
     }).join('');
-    return `<div class="card t-${e.type}" id="leg-${e.id}">
+    return `<div class="card k-${e.type}" id="leg-${e.id}">
       <div class="row"><span class="ev-type">${TYPES[e.type]} · ${fmtDay(e.day)}</span><span class="spacer"></span>${e.done ? '<span class="chip sev-ok">hecho</span>' : ''}</div>
       <div class="leg-head" style="margin-top:6px"><span class="leg-times">${esc(e.start)} – ${esc(e.end)}</span><span class="leg-dur">${fmtDur(dur)}</span></div>
       <div class="leg-route">${esc(t.from)} → ${esc(t.to)}</div>
@@ -467,44 +468,44 @@ function renderBilletes() {
   const legs = sorted(state.events.filter(isTransport));
   let html = privateCTA();
   if (PRIVATE) html += `<div class="card"><div class="muted small">Abono Único Renfe · ${esc(PRIVATE.viajero || '')}</div>
-    <div class="row"><span class="ref">${esc(PRIVATE.abono || '')}</span><span class="spacer"></span><button class="btn small" data-copy="${esc(PRIVATE.abono || '')}">Copiar</button></div></div>`;
+    <div class="row"><span class="ref">${esc(PRIVATE.abono || '')}</span><span class="spacer"></span><button class="btn btn--gray btn--sm" data-copy="${esc(PRIVATE.abono || '')}">Copiar</button></div></div>`;
   html += '<h2>Billetes</h2>';
   html += legs.map(e => {
     const t = tripOf(e);
-    return `<div class="card t-${e.type}">
+    return `<div class="card k-${e.type}">
       <div class="ev-type">${TYPES[e.type]} · ${fmtDay(e.day)} · ${esc(e.start)}–${esc(e.end)}</div>
       <div style="font-weight:600;margin-top:2px">${esc(t.from)} → ${esc(t.to)}</div>
       ${PRIVATE && t.pending ? `<p class="small sev-warn" style="margin:8px 0 0">Datos del billete pendientes: falta el PDF.</p>` : ''}
-      ${t.ref ? `<div class="row" style="margin-top:8px"><span class="ref">${esc(t.ref)}</span><span class="spacer"></span><button class="btn small" data-copy="${esc(t.ref)}">Copiar</button></div>` : ''}
+      ${t.ref ? `<div class="row" style="margin-top:8px"><span class="ref">${esc(t.ref)}</span><span class="spacer"></span><button class="btn btn--gray btn--sm" data-copy="${esc(t.ref)}">Copiar</button></div>` : ''}
       <div class="ticket-grid">
         ${t.ticket ? `<span>Billete</span><span class="mono">${esc(t.ticket)}</span>` : ''}
         ${t.seat ? `<span>Asiento</span><span>${esc(t.seat)}</span>` : ''}
         <span>Servicio</span><span>${esc(t.service)}</span>
         <span>Condiciones</span><span>${esc(t.cancel)}</span>
       </div>
-      ${PRIVATE ? pdfLink(t.pdf, 'Abrir PDF', 'btn block') : ''}
+      ${PRIVATE ? pdfLink(t.pdf, 'Abrir PDF', 'btn btn--gray btn--block') : ''}
     </div>`;
   }).join('');
   html += `<p class="note">Billetes cancelados, ya no valen: Vila-seca–Zaragoza (20/11), Zaragoza–Vitoria (21/11), Vitoria–Donostia (21/11), A Coruña–Santiago (26/11) y Santiago–Ponferrada (27/11).</p>`;
   if (!PRIVATE) return html;
   html += '<h2>Alojamientos</h2>';
-  html += Object.values(STAYS).map(s => `<div class="card t-checkin">
+  html += Object.values(STAYS).map(s => `<div class="card k-checkin">
       <div class="ev-type">${fmtDay(s.checkinDay)} → ${fmtDay(s.checkoutDay)}</div>
       <div style="font-weight:600;margin-top:2px">${esc(stayName(s))}</div>
-      ${s.conf ? `<div class="row" style="margin-top:8px"><span class="ref" style="font-size:17px">${esc(s.conf.split(' ')[0])}</span><span class="spacer"></span><button class="btn small" data-copy="${esc(s.conf.split(' ')[0])}">Copiar</button></div>` : ''}
+      ${s.conf ? `<div class="row" style="margin-top:8px"><span class="ref" style="font-size:17px">${esc(s.conf.split(' ')[0])}</span><span class="spacer"></span><button class="btn btn--gray btn--sm" data-copy="${esc(s.conf.split(' ')[0])}">Copiar</button></div>` : ''}
       <div class="ticket-grid">
-        <span>Check-in</span><span>${s.checkinFrom ? s.checkinFrom + '–' + s.checkinTo : 'Pendiente'}</span>
+        <span>Check-in</span><span>${windowText(s)}</span>
         <span>Check-out</span><span>hasta ${s.checkoutBy}</span>
         ${s.price ? `<span>Precio</span><span>${esc(s.price)}</span>` : ''}
         <span>Cancelar</span><span>${s.nonRefundable ? 'Sin reembolso' : s.cancelUntil ? 'Gratis hasta ' + fmtDate(new Date(s.cancelUntil)) + ' 23:59' : 'Pendiente'}</span>
       </div>
       <div class="btn-row">
         ${pdfLink(s.pdf, 'PDF')}
-        ${s.phone ? `<a class="btn" href="tel:${s.phone.replace(/\s/g, '')}">Llamar</a>` : ''}
-        ${s.address ? `<a class="btn" href="${mapsUrl(s.name + ', ' + s.address, s.lat, s.lng)}" target="_blank" rel="noopener">Maps</a>` : ''}
+        ${s.phone ? `<a class="btn btn--gray" href="tel:${s.phone.replace(/\s/g, '')}">Llamar</a>` : ''}
+        ${s.address ? `<a class="btn btn--gray" href="${mapsUrl(s.name + ', ' + s.address, s.lat, s.lng)}" target="_blank" rel="noopener">Maps</a>` : ''}
       </div>
     </div>`).join('');
-  html += `<button class="btn danger block" data-act="forget" style="margin-top:14px">Borrar datos privados de este dispositivo</button>`;
+  html += `<button class="btn btn--gray btn--danger btn--block" data-act="forget" style="margin-top:14px">Borrar datos privados de este dispositivo</button>`;
   return html;
 }
 
@@ -535,7 +536,7 @@ function renderAvisos() {
     </div>`).join('')}</div>`;
   if (cancels.length) html += `<h2>Plazos de cancelación</h2><div class="card">${cancels.map(a => `
     <div class="alert sev-${a.sev}"><span class="dot"></span><div><p>${esc(a.text)}</p><div class="when">${a.when ? (a.when < n ? 'Plazo vencido' : relText(a.when - n)) : ''}</div></div><span></span></div>`).join('')}</div>`;
-  html += `<h2>Reglas del abono y los buses</h2><div class="card"><ul class="list small">
+  html += `<h2>Reglas del abono y los buses</h2><div class="card"><ul class="plain-list small">
     <li>Billete sin usar: anúlalo al menos 2 h antes de la salida. Con 3 fallos se anula el abono y pierdes la fianza de 20 €.</li>
     <li>Bus Donostia–Bilbao: cambios y anulaciones hasta 2 h antes.</li>
     <li>Bus Oviedo–A Coruña: cambios y anulaciones hasta 24 h antes.</li>
@@ -553,8 +554,7 @@ function openSheet(ev, isNew) {
   const opts = Object.entries(TYPES).map(([k, v]) => `<option value="${k}" ${k === ev.type ? 'selected' : ''}>${v}</option>`).join('');
   const dayOpts = tripDays().map(d => `<option value="${d}" ${d === ev.day ? 'selected' : ''}>${fmtDayLong(d)}</option>`).join('');
   const linked = ev.trip ? `<p class="small muted" style="margin:-4px 0 12px">${esc(tripOf(ev).from)} → ${esc(tripOf(ev).to)} · ${esc(tripOf(ev).ref)}</p>` : '';
-  $('#sheet').innerHTML = `<div class="grab"></div>
-    <h3>${isNew ? 'Nuevo evento' : 'Editar evento'}</h3>
+  $('#sheet').innerHTML = `    <h3>${isNew ? 'Nuevo evento' : 'Editar evento'}</h3>
     ${linked}
     <label class="field"><span>Título</span><input id="f-title" value="${esc(ev.title)}" autocomplete="off"></label>
     <div class="field-row">
@@ -562,8 +562,8 @@ function openSheet(ev, isNew) {
       <label class="field"><span>Fin</span><input id="f-end" type="time" value="${esc(ev.end || '')}"></label>
     </div>
     <div class="nudge">
-      <button class="btn small" data-nudge="-15">−15</button><button class="btn small" data-nudge="-5">−5</button>
-      <button class="btn small" data-nudge="5">+5</button><button class="btn small" data-nudge="15">+15</button>
+      <button class="btn btn--gray btn--sm" data-nudge="-15">−15</button><button class="btn btn--gray btn--sm" data-nudge="-5">−5</button>
+      <button class="btn btn--gray btn--sm" data-nudge="5">+5</button><button class="btn btn--gray btn--sm" data-nudge="15">+15</button>
     </div>
     <div class="field-row">
       <label class="field"><span>Tipo</span><select id="f-type" ${ev.trip || ev.stay ? 'disabled' : ''}>${opts}</select></label>
@@ -572,12 +572,12 @@ function openSheet(ev, isNew) {
     <label class="field"><span>Nota</span><textarea id="f-note" placeholder="Opcional">${esc(ev.note || '')}</textarea></label>
     <div id="sheet-preview" class="sheet-preview"></div>
     <div class="btn-row" style="margin-bottom:8px">
-      ${isNew ? '' : `<button class="btn danger" data-act="delete">Borrar</button>
-      <button class="btn" data-act="toggle-done">${ev.done ? 'Desmarcar' : 'Hecho'}</button>`}
+      ${isNew ? '' : `<button class="btn btn--gray btn--danger" data-act="delete">Borrar</button>
+      <button class="btn btn--gray" data-act="toggle-done">${ev.done ? 'Desmarcar' : 'Hecho'}</button>`}
     </div>
     <div class="btn-row sheet-actions">
-      <button class="btn" data-act="close">Cancelar</button>
-      <button class="btn primary" data-act="save">Guardar</button>
+      <button class="btn btn--gray" data-act="close">Cancelar</button>
+      <button class="btn" data-act="save">Guardar</button>
     </div>`;
   $('#sheet').hidden = false; $('#backdrop').hidden = false;
   ['f-start', 'f-end', 'f-day'].forEach(id => $('#' + id).addEventListener('input', onStartChange));
