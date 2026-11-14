@@ -5,8 +5,8 @@ const STORE_KEY = 'rutaNorte.state';
 const TAB_KEY = 'rutaNorte.tab';
 
 /* Datos privados (se rellenan al importar el JSON privado; viven solo en el dispositivo). */
-let PRIVATE = null;          // JSON privado sin los PDF
-const PDF_URLS = {};         // ruta → blob: URL
+let PRIVATE = null;          // JSON privado sin los archivos
+const FILE_URLS = {};        // ruta (PDF o QR) → blob: URL
 const PUBLIC_STAYS = JSON.parse(JSON.stringify(STAYS));
 const PUBLIC_TRIPS = JSON.parse(JSON.stringify(TRIPS));
 
@@ -91,12 +91,19 @@ function toast(msg) {
   toastTimer = setTimeout(() => { t.hidden = true; }, 3800);
 }
 
-/* ---------- Datos privados: solo en este dispositivo (IndexedDB) ---------- */
+/* ---------- Datos privados: solo en este dispositivo (IndexedDB) ----------
+   Los PDF y los QR se guardan como bytes (ArrayBuffer), no como Blob: Safari en iOS
+   pierde a veces los Blob guardados en IndexedDB. El Blob se crea al cargar. */
 
 function idb() {
   return new Promise((ok, ko) => {
-    const r = indexedDB.open('ruta-norte-privado', 1);
-    r.onupgradeneeded = () => { r.result.createObjectStore('kv'); r.result.createObjectStore('pdfs'); };
+    const r = indexedDB.open('ruta-norte-privado', 2);
+    r.onupgradeneeded = () => {
+      const db = r.result;
+      if (!db.objectStoreNames.contains('kv')) db.createObjectStore('kv');
+      if (db.objectStoreNames.contains('pdfs')) db.deleteObjectStore('pdfs');
+      if (!db.objectStoreNames.contains('files')) db.createObjectStore('files');
+    };
     r.onsuccess = () => ok(r.result);
     r.onerror = () => ko(r.error);
   });
@@ -108,6 +115,7 @@ async function idbTx(store, mode, fn) {
     const res = fn(tx.objectStore(store));
     tx.oncomplete = () => ok(res && 'result' in res ? res.result : res);
     tx.onerror = () => ko(tx.error);
+    tx.onabort = () => ko(tx.error || new Error('abort'));
   });
 }
 function applyPrivate(p) {
@@ -126,21 +134,29 @@ function mergePrivateIntoState(st, p) {
   const gen = p.titulos_genericos || {};
   st.events.forEach(e => { if (p.titulos && p.titulos[e.id] && (!gen[e.id] || e.title === gen[e.id])) e.title = p.titulos[e.id]; });
 }
+function clearFileUrls() {
+  Object.values(FILE_URLS).forEach(u => URL.revokeObjectURL(u));
+  Object.keys(FILE_URLS).forEach(k => delete FILE_URLS[k]);
+}
 async function loadPrivate() {
   try {
     const p = await idbTx('kv', 'readonly', s => s.get('bundle'));
     if (!p) return false;
-    const keys = await idbTx('pdfs', 'readonly', s => s.getAllKeys());
-    const blobs = await idbTx('pdfs', 'readonly', s => s.getAll());
-    keys.forEach((k, i) => { PDF_URLS[k] = URL.createObjectURL(blobs[i]); });
+    const keys = await idbTx('files', 'readonly', s => s.getAllKeys());
+    const vals = await idbTx('files', 'readonly', s => s.getAll());
+    clearFileUrls();
+    keys.forEach((k, i) => {
+      const v = vals[i];
+      if (v && v.bytes) FILE_URLS[k] = URL.createObjectURL(new Blob([v.bytes], { type: v.type }));
+    });
     applyPrivate(p);
     return true;
   } catch (e) { return false; }
 }
-function b64ToBlob(b64) {
+function b64ToBytes(b64) {
   const bin = atob(b64); const u = new Uint8Array(bin.length);
   for (let i = 0; i < bin.length; i++) u[i] = bin.charCodeAt(i);
-  return new Blob([u], { type: 'application/pdf' });
+  return u.buffer;
 }
 function stripPrivate(st, priv) {
   if (!priv) return;
@@ -151,37 +167,115 @@ function stripPrivate(st, priv) {
   st.events.forEach(e => { if (gen[e.id] && priv.titulos && e.title === priv.titulos[e.id]) e.title = gen[e.id]; });
   st.privMerged = false;
 }
+const typeOf = path => /\.png$/i.test(path) ? 'image/png' : /\.jpe?g$/i.test(path) ? 'image/jpeg' : 'application/pdf';
 async function importPrivate(p) {
-  const pdfs = p.pdfs || {};
-  const bundle = { ...p }; delete bundle.pdfs;
-  await idbTx('pdfs', 'readwrite', s => { s.clear(); Object.entries(pdfs).forEach(([k, v]) => s.put(b64ToBlob(v), k)); });
+  // Formato nuevo: files {ruta: {type, b64}}. El antiguo traía pdfs {ruta: b64}.
+  const files = {};
+  Object.entries(p.pdfs || {}).forEach(([k, b64]) => { files[k] = { type: typeOf(k), b64 }; });
+  Object.assign(files, p.files || {});
+  const bundle = { ...p }; delete bundle.pdfs; delete bundle.files;
+  const entries = Object.entries(files).map(([k, f]) => [k, { type: f.type || typeOf(k), bytes: b64ToBytes(f.b64) }]);
+  await idbTx('files', 'readwrite', s => { s.clear(); entries.forEach(([k, v]) => s.put(v, k)); });
   await idbTx('kv', 'readwrite', s => s.put(bundle, 'bundle'));
-  Object.values(PDF_URLS).forEach(u => URL.revokeObjectURL(u));
-  Object.keys(PDF_URLS).forEach(k => delete PDF_URLS[k]);
   // Sustituye los datos privados anteriores por los nuevos, conservando lo marcado como hecho.
   const doneEv = new Set(state.events.filter(e => e.done).map(e => e.id));
   const doneTk = new Set(state.tasks.filter(t => t.done).map(t => t.id).concat(state.doneTasks || []));
   stripPrivate(state, PRIVATE);
-  await loadPrivate();
+  if (!(await loadPrivate())) throw new Error('lectura');
   mergePrivateIntoState(state, PRIVATE);
   state.events.forEach(e => { if (doneEv.has(e.id)) e.done = true; });
   state.tasks.forEach(t => { if (doneTk.has(t.id)) t.done = true; });
   delete state.doneTasks;
   save(); reanalyze(); render();
-  toast(`Datos privados guardados en este dispositivo (${Object.keys(pdfs).length} PDF).`);
+  const pdfOk = Object.keys(FILE_URLS).filter(k => typeOf(k) === 'application/pdf').length;
+  const pdfAll = entries.filter(([, v]) => v.type === 'application/pdf').length;
+  const qr = Object.keys(FILE_URLS).length - pdfOk;
+  toast(`Datos privados guardados en este dispositivo: ${pdfOk} de ${pdfAll} PDF${qr ? ` y ${qr} QR` : ''}.`);
 }
 async function forgetPrivate() {
-  await idbTx('pdfs', 'readwrite', s => s.clear());
+  await idbTx('files', 'readwrite', s => s.clear());
   await idbTx('kv', 'readwrite', s => s.clear());
-  Object.values(PDF_URLS).forEach(u => URL.revokeObjectURL(u));
-  Object.keys(PDF_URLS).forEach(k => delete PDF_URLS[k]);
+  clearFileUrls();
   stripPrivate(state, PRIVATE);
   applyPrivate(null);
   save(); reanalyze(); render(); toast('Datos privados borrados de este dispositivo.');
 }
-function pdfLink(path, label, cls = 'btn btn--gray') {
-  const u = path && PDF_URLS[path];
-  return u ? `<a class="${cls}" href="${u}" target="_blank">${label}</a>` : `<button class="${cls}" disabled>${label} (${path ? 'no importado' : 'pendiente'})</button>`;
+
+/* Visor de PDF dentro de la app. En la app instalada del iPhone un enlace blob: en otra
+   pestaña no abre nada, así que el PDF se pinta aquí con pdf.js (incluido en vendor/). */
+function pdfLink(path, label, cls = 'btn btn--gray', title = label) {
+  const ok = path && FILE_URLS[path];
+  return ok ? `<button class="${cls}" data-pdf="${esc(path)}" data-title="${esc(title)}">${label}</button>`
+    : `<button class="${cls}" disabled>${label} (${path ? 'no importado' : 'pendiente'})</button>`;
+}
+let pdfjsReady = null;
+function loadPdfjs() {
+  if (!pdfjsReady) pdfjsReady = new Promise((ok, ko) => {
+    const sc = document.createElement('script');
+    sc.src = 'vendor/pdfjs/pdf.min.js';
+    sc.onload = () => { window.pdfjsLib.GlobalWorkerOptions.workerSrc = 'vendor/pdfjs/pdf.worker.min.js'; ok(window.pdfjsLib); };
+    sc.onerror = () => { pdfjsReady = null; ko(new Error('pdfjs')); };
+    document.head.appendChild(sc);
+  });
+  return pdfjsReady;
+}
+let viewerToken = 0;
+async function openPdf(path, title) {
+  const url = FILE_URLS[path];
+  if (!url) return;
+  const v = $('#viewer');
+  const token = ++viewerToken;
+  v.innerHTML = `<header class="viewer-bar glass">
+      <button class="btn btn--plain" data-viewer="close">Cerrar</button>
+      <span class="viewer-title">${esc(title || 'PDF')}</span>
+      <button class="btn btn--plain" data-viewer="share">Compartir</button>
+    </header>
+    <div class="viewer-pages" id="viewerPages"><p class="empty">Abriendo…</p></div>`;
+  v.dataset.path = path; v.dataset.title = title || 'documento';
+  v.hidden = false; document.body.classList.add('no-scroll');
+  try {
+    const lib = await loadPdfjs();
+    const bytes = await (await fetch(url)).arrayBuffer();
+    const doc = await lib.getDocument({ data: bytes }).promise;
+    const box = $('#viewerPages');
+    if (token !== viewerToken) return;
+    box.innerHTML = '';
+    const width = box.clientWidth;
+    const dpr = Math.min(window.devicePixelRatio || 1, 3);
+    for (let i = 1; i <= doc.numPages; i++) {
+      const page = await doc.getPage(i);
+      if (token !== viewerToken) return;
+      const base = page.getViewport({ scale: 1 });
+      const vp = page.getViewport({ scale: (width / base.width) * dpr });
+      const c = document.createElement('canvas');
+      c.width = Math.floor(vp.width); c.height = Math.floor(vp.height);
+      c.className = 'viewer-page';
+      box.appendChild(c);
+      await page.render({ canvasContext: c.getContext('2d'), viewport: vp }).promise;
+    }
+  } catch (e) {
+    if (token !== viewerToken) return;
+    // Sin pdf.js (p. ej. sin conexión la primera vez): el visor del sistema dentro de la app.
+    $('#viewerPages').innerHTML = `<iframe class="viewer-frame" src="${url}" title="${esc(title || 'PDF')}"></iframe>`;
+  }
+}
+function closePdf() {
+  viewerToken++;
+  const v = $('#viewer'); v.hidden = true; v.innerHTML = '';
+  document.body.classList.remove('no-scroll');
+}
+async function sharePdf() {
+  const v = $('#viewer'); const url = FILE_URLS[v.dataset.path];
+  if (!url) return;
+  const blob = await (await fetch(url)).blob();
+  const name = v.dataset.title.replace(/[^\p{L}\p{N}\- ]+/gu, '').trim().replace(/\s+/g, '-') + '.pdf';
+  const file = new File([blob], name, { type: 'application/pdf' });
+  if (navigator.canShare && navigator.canShare({ files: [file] })) {
+    try { await navigator.share({ files: [file] }); } catch (e) { /* cancelado */ }
+  } else {
+    const a = document.createElement('a'); a.href = url; a.download = name;
+    document.body.appendChild(a); a.click(); a.remove();
+  }
 }
 const privateCTA = () => PRIVATE ? '' : `<div class="card"><p style="margin:0 0 10px">Los localizadores, los PDF y los alojamientos no están en la web. Importa tu archivo <b>viaje-privado.json</b>: se guarda solo en este dispositivo.</p>
   <button class="btn btn--block" data-act="import">Importar datos privados</button></div>`;
@@ -244,7 +338,7 @@ function evSub(e) {
 
 /* ---------- Análisis compartido ---------- */
 let analysis = {};
-function reanalyze() { analysis = analyzeAll(state.events, STAYS); updateBadge(); }
+function reanalyze() { analysis = analyzeAll(state.events, STAYS); }
 function flagged(id) {
   for (const day in analysis) {
     for (const i of analysis[day].issues) if (i.ids.includes(id)) return i.sev;
@@ -252,14 +346,6 @@ function flagged(id) {
   return null;
 }
 function allIssues() { return Object.values(analysis).flatMap(a => a.issues); }
-function updateBadge() {
-  const n = now();
-  const conflicts = allIssues().filter(i => i.sev === 'bad').length;
-  const urgent = state.tasks.filter(t => !t.done && t.due && new Date(t.due) - n < 48 * 3600e3).length;
-  const b = $('#badge');
-  const total = conflicts + urgent;
-  b.hidden = !total; b.textContent = total;
-}
 
 /* ---------- Componentes ---------- */
 function eventRow(e, { showCheck = true } = {}) {
@@ -425,7 +511,7 @@ function renderCiudad() {
       ${st.notes ? `<p class="small muted" style="margin:0 0 12px">${esc(st.notes)}</p>` : ''}
       ${st.address ? `<div class="btn-row">
         <a class="btn" href="${mapsUrl(st.name + ', ' + st.address, st.lat, st.lng)}" target="_blank" rel="noopener">Abrir en Maps</a>
-        ${pdfLink(st.pdf, 'Reserva PDF')}
+        ${pdfLink(st.pdf, 'Reserva PDF', 'btn btn--gray', stayName(st))}
       </div>` : `<p class="small muted" style="margin:0">Importa tus datos privados para ver la dirección, el teléfono y la reserva.</p>`}
     </div>`).join('')}
     <h2>Qué ver <span class="tag-ori">orientativo</span></h2>
@@ -463,6 +549,70 @@ function renderTrayectos() {
   }).join('') + `<p class="note">Las horas de los paisajes son aproximadas y se calculan a partir de la hora de salida. En noviembre anochece hacia las 17:45.</p>`;
 }
 
+/* ---------- Tarjeta de billete (tipo Wallet) ---------- */
+const openCards = new Set();
+let justOpened = null;        // solo la tarjeta recién abierta se anima
+const LOGOS = {
+  monbus: '<img class="tk-logo" src="logos/monbus.svg" alt="Monbus">',
+  alsa: '<img class="tk-logo" src="logos/alsa.svg" alt="ALSA">',
+  renfe: '<span class="tk-brand"><img class="tk-logo tk-logo--mark" src="logos/renfe.svg" alt="">Renfe</span>',
+  volotea: '<span class="tk-brand">Volotea</span>',
+};
+const ICON = {
+  ref: '<svg viewBox="0 0 24 24"><rect x="3.5" y="6" width="17" height="12" rx="2.5"/><rect x="8.5" y="9" width="7" height="6" rx="1.2"/><path d="M10.5 15v1.5M13.5 15v1.5"/></svg>',
+  seat: '<svg viewBox="0 0 24 24"><path d="M7 3.5c1.5 0 2 1 2.3 2.5l1.2 6.5h6a2 2 0 0 1 0 4H9.8a2 2 0 0 1-2-1.7L6.2 6.5"/><path d="M9 20.5h8"/></svg>',
+  coach: '<svg viewBox="0 0 24 24"><path d="M3.5 16.5V9.5a2 2 0 0 1 2-2h8.5a6.5 6.5 0 0 1 6.5 6.5v2.5z"/><path d="M14 7.5l3.5 5h3"/></svg>',
+  flight: '<svg viewBox="0 0 24 24"><path d="M10.5 13.5 4 12l-1 1.5 6 2.5 2.5 5h1.5l-.5-5.5 5.5-4.5c1.5-1.2 2-3 1-4s-2.8-.5-4 1L10.5 13.5"/></svg>',
+};
+const ARROW = '<svg class="tk-arrow" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 12h17M14 5.5l6.5 6.5-6.5 6.5"/></svg>';
+function tkEnd(side, stop, time) {
+  return `<div class="tk-end tk-end--${side}">
+      <div class="tk-place">${esc(stop.city)}<br>${esc(stop.station)}</div>
+      <div class="tk-code">${esc(stop.code)}</div>
+      <div class="tk-time">${esc(time)}</div>
+    </div>`;
+}
+function ticketCard(e) {
+  const t = tripOf(e);
+  const open = openCards.has(e.id);
+  const day = new Date(e.day + 'T12:00:00');
+  const date = `${day.getDate()} ${day.toLocaleDateString('es-ES', { month: 'short' }).replace('.', '').toUpperCase()}`;
+  const dep = t.dep || { code: '', city: t.from, station: '' }, arr = t.arr || { code: '', city: t.to, station: '' };
+  const route = `<button class="tk-route" data-card="${e.id}" aria-expanded="${open}" aria-label="${open ? 'Plegar' : 'Desplegar'} billete ${esc(t.from)} → ${esc(t.to)}">
+      ${tkEnd('from', dep, e.start)}${ARROW}${tkEnd('to', arr, e.end)}
+    </button>`;
+  const pdfBtn = PRIVATE && t.pdf ? pdfLink(t.pdf, 'Abrir PDF', 'btn tk-paper-btn', `${dep.city} → ${arr.city}`) : '';
+  if (!open) {
+    return `<article class="tk">
+      ${route}
+      <div class="tk-actions">
+        <button class="btn" data-card="${e.id}">Tarjeta</button>
+        ${pdfBtn || `<span class="tk-when">${fmtDay(e.day)}</span>`}
+      </div>
+    </article>`;
+  }
+  const qr = PRIVATE && t.qr && FILE_URLS[t.qr];
+  const third = t.mode === 'flight'
+    ? { icon: ICON.flight, label: 'Vuelo', value: (t.service || '').replace(/^Volotea\s*/, '') }
+    : { icon: ICON.coach, label: 'Coche', value: t.coach || '—' };
+  const info = PRIVATE ? `<div class="tk-info">
+      <button class="tk-cell" data-copy="${esc(t.ref || '')}" aria-label="Copiar localizador">${ICON.ref}<b>Localizador</b><span>${esc(t.ref || '—')}</span></button>
+      <div class="tk-cell">${ICON.seat}<b>Asiento</b><span>${esc(t.seatNo || (t.mode === 'flight' ? 'Embarque' : '—'))}</span></div>
+      <div class="tk-cell">${third.icon}<b>${third.label}</b><span>${esc(third.value)}</span></div>
+    </div>` : '';
+  const anim = justOpened === e.id ? ' tk--anim' : '';
+  return `<article class="tk tk--open${anim}">
+      <div class="tk-head">${LOGOS[t.operator] || `<span class="tk-brand">${esc(t.service || '')}</span>`}<span class="tk-date">${date}</span></div>
+      ${route}
+      ${qr ? `<div class="tk-qr"><img src="${qr}" alt="Código del billete"></div>` : PRIVATE ? `<p class="tk-noqr">${t.mode === 'flight' ? 'La tarjeta de embarque llega con el check-in online.' : 'Sin código: usa el PDF.'}</p>` : ''}
+      ${info}
+      ${PRIVATE ? '' : `<p class="tk-noqr">Importa tus datos privados para ver el código, el localizador y el asiento.</p>`}
+      ${pdfBtn ? `<div class="tk-pdf">${pdfBtn}</div>` : ''}
+      ${PRIVATE && t.pending ? `<p class="tk-cond sev-warn">Datos del billete pendientes: falta el PDF.</p>` : ''}
+      <p class="tk-cond">${esc(t.service || '')}${t.ticket ? ` · Billete ${esc(t.ticket)}` : ''}. ${esc(t.cancel || '')}</p>
+    </article>`;
+}
+
 /* ---------- Pantalla: Billetes y reservas ---------- */
 function renderBilletes() {
   const legs = sorted(state.events.filter(isTransport));
@@ -470,22 +620,7 @@ function renderBilletes() {
   if (PRIVATE) html += `<div class="card"><div class="muted small">Abono Único Renfe · ${esc(PRIVATE.viajero || '')}</div>
     <div class="row"><span class="ref">${esc(PRIVATE.abono || '')}</span><span class="spacer"></span><button class="btn btn--gray btn--sm" data-copy="${esc(PRIVATE.abono || '')}">Copiar</button></div></div>`;
   html += '<h2>Billetes</h2>';
-  html += legs.map(e => {
-    const t = tripOf(e);
-    return `<div class="card k-${e.type}">
-      <div class="ev-type">${TYPES[e.type]} · ${fmtDay(e.day)} · ${esc(e.start)}–${esc(e.end)}</div>
-      <div style="font-weight:600;margin-top:2px">${esc(t.from)} → ${esc(t.to)}</div>
-      ${PRIVATE && t.pending ? `<p class="small sev-warn" style="margin:8px 0 0">Datos del billete pendientes: falta el PDF.</p>` : ''}
-      ${t.ref ? `<div class="row" style="margin-top:8px"><span class="ref">${esc(t.ref)}</span><span class="spacer"></span><button class="btn btn--gray btn--sm" data-copy="${esc(t.ref)}">Copiar</button></div>` : ''}
-      <div class="ticket-grid">
-        ${t.ticket ? `<span>Billete</span><span class="mono">${esc(t.ticket)}</span>` : ''}
-        ${t.seat ? `<span>Asiento</span><span>${esc(t.seat)}</span>` : ''}
-        <span>Servicio</span><span>${esc(t.service)}</span>
-        <span>Condiciones</span><span>${esc(t.cancel)}</span>
-      </div>
-      ${PRIVATE ? pdfLink(t.pdf, 'Abrir PDF', 'btn btn--gray btn--block') : ''}
-    </div>`;
-  }).join('');
+  html += legs.map(ticketCard).join('');
   html += `<p class="note">Billetes cancelados, ya no valen: Vila-seca–Zaragoza (20/11), Zaragoza–Vitoria (21/11), Vitoria–Donostia (21/11), A Coruña–Santiago (26/11) y Santiago–Ponferrada (27/11).</p>`;
   if (!PRIVATE) return html;
   html += '<h2>Alojamientos</h2>';
@@ -500,7 +635,7 @@ function renderBilletes() {
         <span>Cancelar</span><span>${s.nonRefundable ? 'Sin reembolso' : s.cancelUntil ? 'Gratis hasta ' + fmtDate(new Date(s.cancelUntil)) + ' 23:59' : 'Pendiente'}</span>
       </div>
       <div class="btn-row">
-        ${pdfLink(s.pdf, 'PDF')}
+        ${pdfLink(s.pdf, 'PDF', 'btn btn--gray', stayName(s))}
         ${s.phone ? `<a class="btn btn--gray" href="tel:${s.phone.replace(/\s/g, '')}">Llamar</a>` : ''}
         ${s.address ? `<a class="btn btn--gray" href="${mapsUrl(s.name + ', ' + s.address, s.lat, s.lng)}" target="_blank" rel="noopener">Maps</a>` : ''}
       </div>
@@ -512,22 +647,12 @@ function renderBilletes() {
 /* ---------- Pantalla: Avisos ---------- */
 function renderAvisos() {
   const n = now();
-  const issues = allIssues();
-  const bad = issues.filter(i => i.sev === 'bad'), warn = issues.filter(i => i.sev === 'warn');
   const dl = deadlineAlerts(STAYS, state.tasks, n);
   const tasks = dl.filter(a => a.kind === 'task');
   const cancels = dl.filter(a => a.kind === 'cancel');
-  const daily = issues.filter(i => i.kind === 'daily');
-  const checkin = issues.filter(i => i.kind === 'checkin');
   const whenTxt = a => a.when ? `${fmtDate(a.when)} ${String(a.when.getHours()).padStart(2, '0')}:${String(a.when.getMinutes()).padStart(2, '0')} · ${relText(a.when - n)}` : '';
 
   let html = privateCTA();
-  html += `<h2>Conflictos del itinerario</h2>`;
-  html += (bad.length || warn.length) ? issuesHTML([...bad, ...warn].filter(i => !['daily', 'checkin'].includes(i.kind)), true) || '<p class="muted small">Ninguno aparte de los de abajo.</p>' : '<div class="card sev-ok">Sin conflictos.</div>';
-  html += `<h2>Check-ins tardíos</h2>`;
-  html += checkin.length ? issuesHTML(checkin, true) : '<div class="card muted">Ninguno.</div>';
-  html += `<h2>Daily de las 10:15</h2>`;
-  html += daily.length ? issuesHTML(daily, true) : '<div class="card muted">Sin choques.</div>';
   if (tasks.length) html += `<h2>Pendientes y pagos</h2><div class="card">${tasks.map(a => `
     <div class="alert ${a.done ? 'done' : ''} sev-${a.sev}">
       <span class="dot"></span>
@@ -703,6 +828,14 @@ $('#view').addEventListener('click', e => {
     const tk = state.tasks.find(x => x.id === task.dataset.task);
     tk.done = !tk.done; save(); reanalyze(); render(); return;
   }
+  const pdf = t.closest('[data-pdf]');
+  if (pdf) { openPdf(pdf.dataset.pdf, pdf.dataset.title); return; }
+  const card = t.closest('[data-card]');
+  if (card) {
+    const id = card.dataset.card;
+    if (openCards.has(id)) { openCards.delete(id); justOpened = null; } else { openCards.add(id); justOpened = id; }
+    render(); justOpened = null; return;
+  }
   const copy = t.closest('[data-copy]');
   if (copy) {
     const v = copy.dataset.copy;
@@ -763,7 +896,12 @@ $('#sheet').addEventListener('click', e => {
 });
 $('#sheet').addEventListener('input', e => { if (['f-title', 'f-type', 'f-note'].includes(e.target.id)) previewEdit(); });
 $('#backdrop').addEventListener('click', closeSheet);
-document.addEventListener('keydown', e => { if (e.key === 'Escape' && editing) closeSheet(); });
+$('#viewer').addEventListener('click', e => {
+  const a = e.target.closest('[data-viewer]');
+  if (a && a.dataset.viewer === 'close') closePdf();
+  if (a && a.dataset.viewer === 'share') sharePdf();
+});
+document.addEventListener('keydown', e => { if (e.key !== 'Escape') return; if (!$('#viewer').hidden) closePdf(); else if (editing) closeSheet(); });
 $('#importFile').addEventListener('change', e => { if (e.target.files[0]) importJSON(e.target.files[0]); e.target.value = ''; });
 
 /* Cuentas atrás: cada segundo; repinta la pantalla entera cada minuto. */

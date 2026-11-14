@@ -32,11 +32,12 @@
     <button data-tab="ciudad" class="tab"><svg viewBox="0 0 24 24"><path d="M4 20V10l5-3v13M9 20V5l6 3v12M15 20v-8l5 2v6M3 20h18"/></svg><span>Ciudad</span></button>
     <button data-tab="trayectos" class="tab"><svg viewBox="0 0 24 24"><rect x="6" y="3" width="12" height="14" rx="3"/><path d="M6 11h12M9 20l-2 2M15 20l2 2M9 14h.01M15 14h.01"/></svg><span>Trayectos</span></button>
     <button data-tab="billetes" class="tab"><svg viewBox="0 0 24 24"><path d="M4 7h16v3a2 2 0 0 0 0 4v3H4v-3a2 2 0 0 0 0-4z"/><path d="M14 7v10" stroke-dasharray="2 2"/></svg><span>Billetes</span></button>
-    <button data-tab="avisos" class="tab"><svg viewBox="0 0 24 24"><path d="M6 16V11a6 6 0 0 1 12 0v5l2 2H4z"/><path d="M10 20a2 2 0 0 0 4 0"/></svg><span>Avisos</span><i class="badge" id="badge" hidden></i></button>
+    <button data-tab="avisos" class="tab"><svg viewBox="0 0 24 24"><path d="M6 16V11a6 6 0 0 1 12 0v5l2 2H4z"/><path d="M10 20a2 2 0 0 0 4 0"/></svg><span>Avisos</span></button>
   </nav>
 
   <div class="scrim" id="backdrop" hidden></div>
   <section class="sheet" id="sheet" role="dialog" aria-modal="true" hidden></section>
+  <section class="viewer" id="viewer" role="dialog" aria-modal="true" aria-label="Documento" hidden></section>
   <div class="toast glass" id="toast" role="status" hidden></div>
   <input type="file" id="importFile" accept="application/json,.json" hidden>
 
