@@ -4,7 +4,7 @@
    Visitas, comida, historia y paisajes son orientativos. */
 'use strict';
 
-const SEED_VERSION = 2;
+const SEED_VERSION = 3;
 
 const TRIP = {
   title: 'Ruta Norte',
@@ -14,10 +14,11 @@ const TRIP = {
 };
 
 /* Alojamientos: solo ciudad y horarios. Nombre, dirección, teléfono, precio y plazos
-   llegan con el JSON privado. access = minutos aprox. entre estación/aeropuerto y alojamiento. */
+   llegan con el JSON privado. access = minutos aprox. entre estación/aeropuerto y alojamiento.
+   checkinFrom/checkinTo = null: horario de entrada pendiente de confirmar. */
 const STAYS = {
-  zaragoza:  { city: 'zaragoza',  checkinDay: '2026-11-20', checkinFrom: '15:00', checkinTo: '22:00', checkoutDay: '2026-11-21', checkoutBy: '12:00', access: 25 },
-  donostia:  { city: 'donostia',  checkinDay: '2026-11-21', checkinFrom: '14:00', checkinTo: '18:00', checkoutDay: '2026-11-22', checkoutBy: '11:00', access: 12 },
+  donostia1: { city: 'donostia',  checkinDay: '2026-11-20', checkinFrom: null,    checkinTo: null,    checkoutDay: '2026-11-21', checkoutBy: '11:00', access: 15 },
+  donostia2: { city: 'donostia',  checkinDay: '2026-11-21', checkinFrom: '14:00', checkinTo: '18:00', checkoutDay: '2026-11-22', checkoutBy: '11:00', access: 12 },
   bilbao:    { city: 'bilbao',    checkinDay: '2026-11-22', checkinFrom: '16:00', checkinTo: '22:00', checkoutDay: '2026-11-23', checkoutBy: '11:00', access: 20 },
   santander: { city: 'santander', checkinDay: '2026-11-23', checkinFrom: '14:00', checkinTo: '23:30', checkoutDay: '2026-11-24', checkoutBy: '12:00', access: 25 },
   oviedo:    { city: 'oviedo',    checkinDay: '2026-11-24', checkinFrom: '13:00', checkinTo: '23:30', checkoutDay: '2026-11-25', checkoutBy: '11:00', access: 10 },
@@ -28,42 +29,13 @@ const STAYS = {
 /* Datos fijos de cada trayecto: servicio, paradas y paisajes (sin localizadores).
    highlights.at = minutos desde la salida (se recalcula si cambias la hora). */
 const TRIPS = {
-  t1: {
-    mode: 'train', from: 'Vila-seca', to: 'Zaragoza Miraflores', service: 'Regional Exprés 17501',
-    cancel: 'Abono: anular al menos 2 h antes si no lo usas.',
-    route: 'Por la línea Reus-Caspe, bordeando el Priorat y cruzando el Ebro.',
+  m1: {
+    mode: 'bus', from: 'Salou', to: 'Donostia', service: 'Monbus',
+    cancel: 'Billete aparte del abono: condiciones de cambio según el billete.',
+    route: 'Recorrido exacto pendiente del billete. Anochece hacia las 17:45, así que casi todo el viaje es de noche: lleva cena.',
     highlights: [
-      { at: 15, text: 'Reus y primeras subidas hacia las sierras del Priorat' },
-      { at: 45, text: 'Túneles y viñedos en terrazas del Priorat (Marçà-Falset)' },
-      { at: 70, text: 'Cruce del Ebro en Móra la Nova' },
-      { at: 95, text: 'Riba-roja d\'Ebre: meandros y embalse' },
-      { at: 125, text: 'Caspe y el «Mar de Aragón» (embalse de Mequinenza)' },
-      { at: 170, text: 'Estepa del Bajo Aragón, paisaje casi desértico' },
-      { at: 220, text: 'Valle del Ebro y entrada en Zaragoza' },
-    ],
-  },
-  t2: {
-    mode: 'train', from: 'Zaragoza Delicias', to: 'Vitoria-Gasteiz', service: 'Regional Exprés 18021',
-    cancel: 'Abono: anular al menos 2 h antes si no lo usas.',
-    route: 'Remonta el valle del Ebro por Tudela, Logroño, Haro y Miranda.',
-    highlights: [
-      { at: 25, text: 'Moncayo a la izquierda, a menudo nevado' },
-      { at: 55, text: 'Tudela; al norte, las Bardenas Reales a lo lejos' },
-      { at: 115, text: 'Logroño y viñedos de La Rioja, con colores de otoño' },
-      { at: 155, text: 'Haro y las Conchas de Haro, garganta del Ebro' },
-      { at: 180, text: 'Miranda de Ebro' },
-      { at: 205, text: 'Llanada Alavesa y entrada en Vitoria' },
-    ],
-  },
-  t3: {
-    mode: 'train', from: 'Vitoria-Gasteiz', to: 'Donostia-San Sebastián', service: 'Media Distancia 18063',
-    cancel: 'Abono: anular al menos 2 h antes si no lo usas.',
-    route: 'Cruza la divisoria cantábrica por Altsasu y baja por el Goierri. Casi todo de noche.',
-    highlights: [
-      { at: 25, text: 'Final de la Llanada; sierras de Urbasa y Aralar (ya de noche)' },
-      { at: 45, text: 'Altsasu/Alsasua y paso de la divisoria de aguas' },
-      { at: 75, text: 'Goierri: Beasain y el valle del Oria' },
-      { at: 110, text: 'Tolosa y bajada hacia la costa' },
+      { at: 20, text: 'Camp de Tarragona y subida hacia el interior' },
+      { at: 90, text: 'Últimas luces del día sobre la llanura (anochece hacia las 17:45)' },
     ],
   },
   b1: {
@@ -144,23 +116,21 @@ const TRIPS = {
 
 /* Itinerario editable. tipos: train, bus, flight, checkin, checkout, visit, meal, work, daily, note */
 const SEED_EVENTS = [
-  // Vie 20
-  { id: 'e03', day: '2026-11-20', start: '10:22', end: '14:16', type: 'train', title: 'Tren a Zaragoza', trip: 't1' },
-  { id: 'e05', day: '2026-11-20', start: '15:00', end: '', type: 'checkin', title: 'Check-in en Zaragoza', stay: 'zaragoza' },
-  { id: 'e06', day: '2026-11-20', start: '16:00', end: '19:00', type: 'visit', title: 'Pilar, La Seo y Puente de Piedra al atardecer', city: 'zaragoza' },
-  { id: 'e07', day: '2026-11-20', start: '20:30', end: '22:00', type: 'meal', title: 'Tapeo en El Tubo', city: 'zaragoza' },
-  // Sáb 21
-  { id: 'e10', day: '2026-11-21', start: '09:30', end: '11:00', type: 'visit', title: 'Mercado Central', city: 'zaragoza' },
-  { id: 'e11', day: '2026-11-21', start: '11:45', end: '', type: 'checkout', title: 'Check-out en Zaragoza', stay: 'zaragoza' },
-  { id: 'e12', day: '2026-11-21', start: '13:07', end: '16:43', type: 'train', title: 'Tren a Vitoria', trip: 't2' },
-  { id: 'e13', day: '2026-11-21', start: '16:50', end: '18:00', type: 'visit', title: 'Vitoria: Virgen Blanca, Santa María, pintxo', city: 'vitoria' },
-  { id: 'e14', day: '2026-11-21', start: '18:22', end: '20:28', type: 'train', title: 'Tren a Donostia', trip: 't3' },
-  { id: 'e15', day: '2026-11-21', start: '20:45', end: '', type: 'checkin', title: 'Check-in en Donostia', stay: 'donostia' },
-  { id: 'e16', day: '2026-11-21', start: '21:15', end: '22:30', type: 'meal', title: 'Cena: Bergara Bar o La Cuchara de San Telmo', city: 'donostia' },
+  // Vie 20 (el trabajo y el daily llegan con el JSON privado)
+  { id: 'e101', day: '2026-11-20', start: '15:40', end: '22:50', type: 'bus', title: 'Bus a Donostia (llevar cena)', trip: 'm1' },
+  { id: 'e102', day: '2026-11-20', start: '23:10', end: '', type: 'checkin', title: 'Check-in en Donostia (1.ª noche)', stay: 'donostia1' },
+  // Sáb 21: día completo en Donostia
+  { id: 'e110', day: '2026-11-21', start: '11:00', end: '', type: 'checkout', title: 'Check-out (1.ª noche)', stay: 'donostia1' },
+  { id: 'e111', day: '2026-11-21', start: '11:00', end: '', type: 'note', title: 'Guardar la mochila hasta las 14:00' },
+  { id: 'e112', day: '2026-11-21', start: '11:15', end: '13:45', type: 'visit', title: 'Parte Vieja, La Bretxa, puerto y Monte Urgull', city: 'donostia' },
+  { id: 'e113', day: '2026-11-21', start: '14:00', end: '', type: 'checkin', title: 'Check-in en Donostia (2.ª noche)', stay: 'donostia2' },
+  { id: 'e114', day: '2026-11-21', start: '14:15', end: '15:30', type: 'meal', title: 'Pintxos en la calle 31 de Agosto', city: 'donostia' },
+  { id: 'e115', day: '2026-11-21', start: '15:45', end: '18:30', type: 'visit', title: 'La Concha, Miramar, Ondarreta y Peine del Viento al atardecer', city: 'donostia' },
+  { id: 'e116', day: '2026-11-21', start: '20:30', end: '22:00', type: 'meal', title: 'Cena: Bergara Bar o La Cuchara de San Telmo', city: 'donostia' },
   // Dom 22
-  { id: 'e20', day: '2026-11-22', start: '10:45', end: '', type: 'checkout', title: 'Check-out en Donostia', stay: 'donostia' },
-  { id: 'e21', day: '2026-11-22', start: '11:00', end: '14:00', type: 'visit', title: 'La Concha, Peine del Viento, Parte Vieja, Igueldo', city: 'donostia' },
-  { id: 'e22', day: '2026-11-22', start: '14:00', end: '15:15', type: 'meal', title: 'Pintxos en 31 de Agosto o Gros', city: 'donostia' },
+  { id: 'e20', day: '2026-11-22', start: '10:45', end: '', type: 'checkout', title: 'Check-out en Donostia', stay: 'donostia2' },
+  { id: 'e21', day: '2026-11-22', start: '11:00', end: '14:00', type: 'visit', title: 'Monte Igueldo, Gros y playa de Zurriola', city: 'donostia' },
+  { id: 'e22', day: '2026-11-22', start: '14:00', end: '15:15', type: 'meal', title: 'Pintxos en Gros', city: 'donostia' },
   { id: 'e23', day: '2026-11-22', start: '16:00', end: '17:20', type: 'bus', title: 'Bus a Bilbao', trip: 'b1' },
   { id: 'e24', day: '2026-11-22', start: '17:45', end: '', type: 'checkin', title: 'Check-in en Bilbao', stay: 'bilbao' },
   { id: 'e25', day: '2026-11-22', start: '20:30', end: '22:00', type: 'meal', title: 'Plaza Nueva y paseo por el Casco Viejo', city: 'bilbao' },
@@ -208,39 +178,9 @@ const SEED_TASKS = [];
 
 /* Fichas de ciudad. Visitas, comida, historia y curiosidades son orientativas. */
 const CITIES = {
-  zaragoza: {
-    name: 'Zaragoza', days: 'Vie 20 y sáb 21', stay: 'zaragoza',
-    see: ['Basílica del Pilar y plaza del Pilar', 'Catedral de La Seo', 'Puente de Piedra al atardecer', 'Mercado Central (sábado por la mañana)', 'Restos romanos: foro, teatro y muralla de Caesaraugusta'],
-    eat: ['Tapeo en El Tubo: Casa Lac, Bodegas Almau', 'Bocadillo de ternasco o migas en bares del Tubo'],
-    history: [
-      'Fundada como Caesaraugusta hacia el 14 a. C., lleva el nombre del emperador Augusto, que es de donde viene «Zaragoza».',
-      'Fue la Saraqusta musulmana y capital de una taifa. De esa época es la Aljafería.',
-      'Resistió dos sitios del ejército napoleónico en 1808 y 1809. El de 1809 fue uno de los más duros de la guerra.',
-    ],
-    facts: [
-      'En la basílica del Pilar se conservan dos bombas que cayeron sobre el templo en 1936 y no explotaron.',
-      'El cierzo, el viento del noroeste, sopla muchos días del año. Lleva algo que abrigue.',
-      'La Seo reúne románico, gótico, mudéjar y barroco en un solo edificio.',
-    ],
-  },
-  vitoria: {
-    name: 'Vitoria-Gasteiz', days: 'Sáb 21 (parada de 1 h 39)', stay: null,
-    see: ['Plaza de la Virgen Blanca y monumento a la batalla de Vitoria', 'Catedral de Santa María (exterior)', 'Calles gremiales del casco medieval: Cuchillería, Correría', 'Los Arquillos'],
-    eat: ['Pintxo en la calle Cuchillería', 'Taberna Sagartoki (pintxos premiados)'],
-    history: [
-      'La fundó Sancho VI de Navarra en 1181 sobre la aldea de Gasteiz.',
-      'En 1813 la batalla de Vitoria fue decisiva para expulsar a las tropas napoleónicas. Beethoven le dedicó «La victoria de Wellington».',
-      'Es la capital del País Vasco desde 1980.',
-    ],
-    facts: [
-      'Su casco antiguo tiene forma de almendra.',
-      'Fue Capital Verde Europea en 2012. La rodea el Anillo Verde, una red de parques.',
-      'La catedral de Santa María inspiró a Ken Follett para «Un mundo sin fin».',
-    ],
-  },
   donostia: {
-    name: 'Donostia-San Sebastián', days: 'Sáb 21 y dom 22', stay: 'donostia',
-    see: ['Playa de la Concha y paseo', 'Peine del Viento de Chillida', 'Parte Vieja', 'Funicular de Monte Igueldo (comprobar horario de invierno)', 'Monte Urgull'],
+    name: 'Donostia-San Sebastián', days: 'Vie 20 a dom 22 (dos noches)', stay: ['donostia1', 'donostia2'],
+    see: ['Playa de la Concha y paseo', 'Peine del Viento de Chillida', 'Parte Vieja y Mercado de La Bretxa', 'Monte Urgull y el puerto', 'Palacio de Miramar y sus jardines', 'Museo San Telmo (comprobar horario)', 'Funicular de Monte Igueldo (comprobar horario de invierno)', 'Barrio de Gros y playa de Zurriola'],
     eat: ['Bergara Bar (Gros)', 'La Cuchara de San Telmo (Parte Vieja)', 'Pintxos en la calle 31 de Agosto'],
     history: [
       'Las tropas angloportuguesas la incendiaron en 1813 durante la guerra contra Napoleón. La calle 31 de Agosto fue de las pocas que se salvaron, y de ahí viene su nombre.',

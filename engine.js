@@ -81,6 +81,18 @@ function analyzeDay(day, allEvents, stays) {
     const ciT = toMin(ci.start);
     const from = toMin(st.checkinFrom), to = toMin(st.checkinTo);
     const arr = [...transports].reverse().find(t => toMin(t.start) <= ciT);
+    if (from == null || to == null) {
+      // Horario de entrada sin confirmar: solo la hora estimada de llegada.
+      if (arr) {
+        const eta = endMin(arr) + st.access;
+        margins.push({ label: `Llegada a ${stayName(st)}`, value: null, sev: 'warn', detail: `Llegas sobre las ${fromMin(eta)}. Horario de entrada pendiente de confirmar.` });
+        add('warn', `${stayName(st)}: llegas sobre las ${fromMin(eta)} (el bus llega a las ${arr.end}). Confirma con el anfitrión el check-in tardío.`, [ci.id, arr.id], 'checkin');
+        if (ciT < eta) add('bad', `El check-in de ${stayName(st)} está a las ${ci.start}, pero no llegas hasta las ${fromMin(eta)}.`, [ci.id, arr.id]);
+      } else {
+        add('warn', `${stayName(st)}: horario de entrada pendiente de confirmar.`, [ci.id], 'checkin');
+      }
+      return;
+    }
     if (arr) {
       const eta = endMin(arr) + st.access;
       const late = eta - to;
@@ -97,6 +109,15 @@ function analyzeDay(day, allEvents, stays) {
     const lateArrival = issues.some(i => i.kind === 'checkin' && i.ids.includes(ci.id));
     if (ciT > to && !lateArrival) add('bad', `El check-in de ${stayName(st)} a las ${ci.start} está fuera de horario (cierra a las ${st.checkinTo}).`, [ci.id], 'checkin');
     else if (ciT < from) add('warn', `El check-in de ${stayName(st)} a las ${ci.start} es antes de que abra (${st.checkinFrom}).`, [ci.id], 'checkin');
+  });
+
+  // 3b. Cambio de alojamiento el mismo día sin transporte: hueco con la mochila
+  ev.filter(e => e.type === 'checkout' && e.stay && stays[e.stay]).forEach(co => {
+    const ci = ev.find(e => e.type === 'checkin' && e.stay && e.stay !== co.stay && toMin(e.start) >= toMin(co.start));
+    if (!ci || transports.some(t => toMin(t.start) >= toMin(co.start) && toMin(t.start) <= toMin(ci.start))) return;
+    const gap = toMin(ci.start) - toMin(co.start);
+    margins.push({ label: 'Mochila entre alojamientos', value: gap, sev: gap > 60 ? 'warn' : 'ok',
+      detail: `Check-out a las ${co.start} y check-in a las ${ci.start}: pregunta en alguno de los dos si te guardan la mochila.` });
   });
 
   // 4. Daily frente a transportes

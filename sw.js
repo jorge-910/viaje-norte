@@ -1,6 +1,6 @@
 /* Service worker: guarda la app para usarla sin conexión. Los PDF no pasan por aquí:
    se importan con el JSON privado y viven en IndexedDB, solo en el dispositivo. */
-const CACHE = 'ruta-norte-v2';
+const CACHE = 'ruta-norte-v3';
 const SHELL = ['./', 'index.html', 'app.css', 'app.js', 'data.js', 'engine.js', 'manifest.webmanifest', 'icons/icon.svg', 'icons/icon-180.png', 'icons/icon-192.png', 'icons/icon-512.png'];
 
 self.addEventListener('install', e => {

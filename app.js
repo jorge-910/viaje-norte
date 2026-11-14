@@ -30,12 +30,27 @@ function loadState() {
     const raw = localStorage.getItem(STORE_KEY);
     if (raw) {
       const s = JSON.parse(raw);
-      if (Array.isArray(s.events) && Array.isArray(s.tasks)) return s;
+      if (Array.isArray(s.events) && Array.isArray(s.tasks)) {
+        if (s.seed === SEED_VERSION) return s;
+        // Itinerario nuevo: se rehace desde la semilla, conservando lo marcado como hecho
+        // y los eventos que añadiste tú.
+        const fresh = seedState();
+        const done = new Set(s.events.filter(e => e.done).map(e => e.id));
+        fresh.events.forEach(e => { if (done.has(e.id)) e.done = true; });
+        s.events.filter(e => /^u/.test(e.id) && e.day >= TRIP.start && e.day <= TRIP.end).forEach(e => fresh.events.push(e));
+        fresh.doneTasks = s.tasks.filter(t => t.done).map(t => t.id);
+        fresh.migrated = true;
+        return fresh;
+      }
     }
   } catch (e) { /* almacenamiento no disponible */ }
   return seedState();
 }
 let state = loadState();
+if (state.migrated) {
+  delete state.migrated;
+  setTimeout(() => { save(); toast('Itinerario actualizado con los últimos cambios del viaje.'); }, 0);
+}
 function save() {
   state.updated = new Date().toISOString();
   try { localStorage.setItem(STORE_KEY, JSON.stringify(state)); }
@@ -127,6 +142,15 @@ function b64ToBlob(b64) {
   for (let i = 0; i < bin.length; i++) u[i] = bin.charCodeAt(i);
   return new Blob([u], { type: 'application/pdf' });
 }
+function stripPrivate(st, priv) {
+  if (!priv) return;
+  const ev = new Set((priv.eventos || []).map(e => e.id)), tk = new Set((priv.tareas || []).map(t => t.id));
+  st.events = st.events.filter(e => !ev.has(e.id));
+  st.tasks = st.tasks.filter(t => !tk.has(t.id));
+  const gen = priv.titulos_genericos || {};
+  st.events.forEach(e => { if (gen[e.id] && priv.titulos && e.title === priv.titulos[e.id]) e.title = gen[e.id]; });
+  st.privMerged = false;
+}
 async function importPrivate(p) {
   const pdfs = p.pdfs || {};
   const bundle = { ...p }; delete bundle.pdfs;
@@ -134,8 +158,15 @@ async function importPrivate(p) {
   await idbTx('kv', 'readwrite', s => s.put(bundle, 'bundle'));
   Object.values(PDF_URLS).forEach(u => URL.revokeObjectURL(u));
   Object.keys(PDF_URLS).forEach(k => delete PDF_URLS[k]);
+  // Sustituye los datos privados anteriores por los nuevos, conservando lo marcado como hecho.
+  const doneEv = new Set(state.events.filter(e => e.done).map(e => e.id));
+  const doneTk = new Set(state.tasks.filter(t => t.done).map(t => t.id).concat(state.doneTasks || []));
+  stripPrivate(state, PRIVATE);
   await loadPrivate();
   mergePrivateIntoState(state, PRIVATE);
+  state.events.forEach(e => { if (doneEv.has(e.id)) e.done = true; });
+  state.tasks.forEach(t => { if (doneTk.has(t.id)) t.done = true; });
+  delete state.doneTasks;
   save(); reanalyze(); render();
   toast(`Datos privados guardados en este dispositivo (${Object.keys(pdfs).length} PDF).`);
 }
@@ -144,21 +175,13 @@ async function forgetPrivate() {
   await idbTx('kv', 'readwrite', s => s.clear());
   Object.values(PDF_URLS).forEach(u => URL.revokeObjectURL(u));
   Object.keys(PDF_URLS).forEach(k => delete PDF_URLS[k]);
-  const priv = PRIVATE;
+  stripPrivate(state, PRIVATE);
   applyPrivate(null);
-  state.privMerged = false;
-  if (priv) {
-    const ev = new Set((priv.eventos || []).map(e => e.id)), tk = new Set((priv.tareas || []).map(t => t.id));
-    state.events = state.events.filter(e => !ev.has(e.id));
-    state.tasks = state.tasks.filter(t => !tk.has(t.id));
-    const gen = priv.titulos_genericos || {};
-    state.events.forEach(e => { if (gen[e.id] && priv.titulos && e.title === priv.titulos[e.id]) e.title = gen[e.id]; });
-  }
   save(); reanalyze(); render(); toast('Datos privados borrados de este dispositivo.');
 }
 function pdfLink(path, label, cls = 'btn') {
   const u = path && PDF_URLS[path];
-  return u ? `<a class="${cls}" href="${u}" target="_blank">${label}</a>` : `<button class="${cls}" disabled>${label} (no importado)</button>`;
+  return u ? `<a class="${cls}" href="${u}" target="_blank">${label}</a>` : `<button class="${cls}" disabled>${label} (${path ? 'no importado' : 'pendiente'})</button>`;
 }
 const privateCTA = () => PRIVATE ? '' : `<div class="card"><p style="margin:0 0 10px">Los localizadores, los PDF y los alojamientos no están en la web. Importa tu archivo <b>viaje-privado.json</b>: se guarda solo en este dispositivo.</p>
   <button class="btn primary block" data-act="import">Importar datos privados</button></div>`;
@@ -198,8 +221,10 @@ function cityOfDay(day) {
   const st = Object.values(STAYS).find(s => s.checkinDay <= day && s.checkoutDay > day);
   if (st) return st.city;
   const last = Object.values(STAYS).find(s => s.checkoutDay === day);
-  return last ? last.city : 'zaragoza';
+  return last ? last.city : 'donostia';
 }
+function checkinWindow(s) { return s.checkinFrom ? `Check-in ${s.checkinFrom}–${s.checkinTo}` : 'Horario de entrada pendiente de confirmar'; }
+const marginVal = v => v == null ? '—' : fmtDur(v);
 function evSub(e) {
   const parts = [];
   if (isTransport(e)) {
@@ -208,7 +233,7 @@ function evSub(e) {
     if (e.end) parts.push(`llega ${e.end}`);
   } else if (e.stay && STAYS[e.stay]) {
     const s = STAYS[e.stay];
-    parts.push(e.type === 'checkin' ? `Check-in ${s.checkinFrom}–${s.checkinTo}` : `Límite ${s.checkoutBy}`);
+    parts.push(e.type === 'checkin' ? checkinWindow(s) : `Límite ${s.checkoutBy}`);
   } else if (e.end) {
     parts.push(`hasta ${e.end}`);
   }
@@ -272,7 +297,7 @@ function marginsHTML(day) {
   const a = analysis[day];
   if (!a || !a.margins.length) return '';
   return `<div class="margins">${a.margins.map(m => `
-    <div class="margin sev-${m.sev}"><b>${esc(m.label)}</b><span class="val">${fmtDur(m.value)}</span><span class="det">${esc(m.detail)}</span></div>`).join('')}</div>`;
+    <div class="margin sev-${m.sev}"><b>${esc(m.label)}</b><span class="val">${marginVal(m.value)}</span><span class="det">${esc(m.detail)}</span></div>`).join('')}</div>`;
 }
 function issuesHTML(issues, withDay) {
   return issues.map(i => `<div class="issue sev-${i.sev}" ${withDay ? `data-goday="${i.day}"` : ''}>
@@ -377,7 +402,7 @@ let currentCity = null;
 function renderCiudad() {
   if (!currentCity) currentCity = cityOfDay(isoDay(now()) < TRIP.start ? TRIP.start : isoDay(now()));
   const c = CITIES[currentCity];
-  const st = c.stay ? STAYS[c.stay] : null;
+  const stayIds = [].concat(c.stay || []);
   const chips = Object.entries(CITIES).map(([k, v]) =>
     `<button data-city="${k}" aria-pressed="${k === currentCity}">${esc(v.name.split('-')[0].replace('València', 'Valencia'))}</button>`).join('');
   const linkList = (items, city) => `<ul class="list link-list">${items.map(it =>
@@ -385,12 +410,13 @@ function renderCiudad() {
   return `<div class="chips">${chips}</div>
     <div class="city-name">${esc(c.name)}</div>
     <div class="muted small">${esc(c.days)}</div>
-    ${st ? `<h2>Alojamiento</h2>
+    ${stayIds.length ? `<h2>${stayIds.length > 1 ? 'Alojamientos' : 'Alojamiento'}</h2>` : ''}
+    ${stayIds.map(id => STAYS[id]).filter(Boolean).map(st => `
     <div class="card">
       <div style="font-weight:600">${esc(stayName(st))}</div>
       ${st.address ? `<div class="muted small">${esc(st.address)}</div>` : ''}
       <dl class="kv">
-        <dt>Check-in</dt><dd>${fmtDay(st.checkinDay)}, ${st.checkinFrom}–${st.checkinTo}</dd>
+        <dt>Check-in</dt><dd>${fmtDay(st.checkinDay)}, ${st.checkinFrom ? st.checkinFrom + '–' + st.checkinTo : 'horario pendiente'}</dd>
         <dt>Check-out</dt><dd>${fmtDay(st.checkoutDay)}, hasta ${st.checkoutBy}</dd>
         ${st.phone ? `<dt>Teléfono</dt><dd><a href="tel:${st.phone.replace(/\s/g, '')}">${esc(st.phone)}</a></dd>` : ''}
         ${st.price ? `<dt>Precio</dt><dd>${esc(st.price)}</dd>` : ''}
@@ -400,7 +426,7 @@ function renderCiudad() {
         <a class="btn primary" href="${mapsUrl(st.name + ', ' + st.address, st.lat, st.lng)}" target="_blank" rel="noopener">Abrir en Maps</a>
         ${pdfLink(st.pdf, 'Reserva PDF')}
       </div>` : `<p class="small muted" style="margin:0">Importa tus datos privados para ver la dirección, el teléfono y la reserva.</p>`}
-    </div>` : `<p class="note">Sin alojamiento: es una parada entre trenes.</p>`}
+    </div>`).join('')}
     <h2>Qué ver <span class="tag-ori">orientativo</span></h2>
     <div class="card">${linkList(c.see, c.name)}</div>
     <h2>Comer barato <span class="tag-ori">orientativo</span></h2>
@@ -448,6 +474,7 @@ function renderBilletes() {
     return `<div class="card t-${e.type}">
       <div class="ev-type">${TYPES[e.type]} · ${fmtDay(e.day)} · ${esc(e.start)}–${esc(e.end)}</div>
       <div style="font-weight:600;margin-top:2px">${esc(t.from)} → ${esc(t.to)}</div>
+      ${PRIVATE && t.pending ? `<p class="small sev-warn" style="margin:8px 0 0">Datos del billete pendientes: falta el PDF.</p>` : ''}
       ${t.ref ? `<div class="row" style="margin-top:8px"><span class="ref">${esc(t.ref)}</span><span class="spacer"></span><button class="btn small" data-copy="${esc(t.ref)}">Copiar</button></div>` : ''}
       <div class="ticket-grid">
         ${t.ticket ? `<span>Billete</span><span class="mono">${esc(t.ticket)}</span>` : ''}
@@ -458,7 +485,7 @@ function renderBilletes() {
       ${PRIVATE ? pdfLink(t.pdf, 'Abrir PDF', 'btn block') : ''}
     </div>`;
   }).join('');
-  html += `<p class="note">Billetes cancelados, ya no valen: A Coruña–Santiago (26/11) y Santiago–Ponferrada (27/11).</p>`;
+  html += `<p class="note">Billetes cancelados, ya no valen: Vila-seca–Zaragoza (20/11), Zaragoza–Vitoria (21/11), Vitoria–Donostia (21/11), A Coruña–Santiago (26/11) y Santiago–Ponferrada (27/11).</p>`;
   if (!PRIVATE) return html;
   html += '<h2>Alojamientos</h2>';
   html += Object.values(STAYS).map(s => `<div class="card t-checkin">
@@ -466,10 +493,10 @@ function renderBilletes() {
       <div style="font-weight:600;margin-top:2px">${esc(stayName(s))}</div>
       ${s.conf ? `<div class="row" style="margin-top:8px"><span class="ref" style="font-size:17px">${esc(s.conf.split(' ')[0])}</span><span class="spacer"></span><button class="btn small" data-copy="${esc(s.conf.split(' ')[0])}">Copiar</button></div>` : ''}
       <div class="ticket-grid">
-        <span>Check-in</span><span>${s.checkinFrom}–${s.checkinTo}</span>
+        <span>Check-in</span><span>${s.checkinFrom ? s.checkinFrom + '–' + s.checkinTo : 'Pendiente'}</span>
         <span>Check-out</span><span>hasta ${s.checkoutBy}</span>
         ${s.price ? `<span>Precio</span><span>${esc(s.price)}</span>` : ''}
-        <span>Cancelar</span><span>${s.nonRefundable ? 'Sin reembolso' : s.cancelUntil ? 'Gratis hasta ' + fmtDate(new Date(s.cancelUntil)) + ' 23:59' : '—'}</span>
+        <span>Cancelar</span><span>${s.nonRefundable ? 'Sin reembolso' : s.cancelUntil ? 'Gratis hasta ' + fmtDate(new Date(s.cancelUntil)) + ' 23:59' : 'Pendiente'}</span>
       </div>
       <div class="btn-row">
         ${pdfLink(s.pdf, 'PDF')}
@@ -588,7 +615,7 @@ function previewEdit() {
   const rel = res.margins.filter(m => m.sev !== 'ok' || isTransport(draft)).slice(0, 4);
   $('#sheet-preview').innerHTML =
     (mine.length ? issuesHTML(mine) : `<div class="issue sev-ok"><span class="dot"></span><p>Sin conflictos con este horario.</p></div>`) +
-    (rel.length ? `<div class="margins">${rel.map(m => `<div class="margin sev-${m.sev}"><b>${esc(m.label)}</b><span class="val">${fmtDur(m.value)}</span><span class="det">${esc(m.detail)}</span></div>`).join('')}</div>` : '');
+    (rel.length ? `<div class="margins">${rel.map(m => `<div class="margin sev-${m.sev}"><b>${esc(m.label)}</b><span class="val">${marginVal(m.value)}</span><span class="det">${esc(m.detail)}</span></div>`).join('')}</div>` : '');
 }
 function closeSheet() { $('#sheet').hidden = true; $('#backdrop').hidden = true; editing = null; lastStart = null; }
 function saveSheet() {
