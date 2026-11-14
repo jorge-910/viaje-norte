@@ -655,7 +655,7 @@ function renderBilletes() {
         <span>Check-in</span><span>${windowText(s)}</span>
         <span>Check-out</span><span>hasta ${s.checkoutBy}</span>
         ${s.price ? `<span>Precio</span><span>${esc(s.price)}</span>` : ''}
-        <span>Cancelar</span><span>${s.nonRefundable ? 'Sin reembolso' : s.cancelUntil ? 'Gratis hasta ' + fmtDate(new Date(s.cancelUntil)) + ' 23:59' : 'Pendiente'}</span>
+        <span>Cancelar</span><span>${s.nonRefundable ? 'Sin reembolso' : s.cancelUntil ? 'Gratis hasta ' + fmtDate(new Date(s.cancelUntil)) + ' ' + s.cancelUntil.slice(11, 16) : 'Pendiente'}</span>
       </div>
       <div class="btn-row">
         ${pdfLink(s.pdf, 'PDF', 'btn btn--gray', stayName(s))}

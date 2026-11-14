@@ -184,7 +184,7 @@ function deadlineAlerts(stays, tasks, now) {
       const when = new Date(st.cancelUntil);
       const left = when - now;
       const sev = left < 0 ? 'past' : left < 48 * 3600e3 ? 'bad' : left < 7 * 86400e3 ? 'warn' : 'ok';
-      out.push({ id: 'cx-' + id, kind: 'cancel', when, sev, text: `${stayName(st)}: cancelación gratuita hasta el ${fmtDate(when)} a las 23:59.` });
+      out.push({ id: 'cx-' + id, kind: 'cancel', when, sev, text: `${stayName(st)}: cancelación gratuita hasta el ${fmtDate(when)} a las ${String(when.getHours()).padStart(2, '0')}:${String(when.getMinutes()).padStart(2, '0')}.` });
     }
   });
   tasks.forEach(t => {

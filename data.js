@@ -4,7 +4,7 @@
    Visitas, comida, historia y paisajes son orientativos. */
 'use strict';
 
-const SEED_VERSION = 3;
+const SEED_VERSION = 4;
 
 const TRIP = {
   title: 'Ruta Norte',
@@ -20,10 +20,10 @@ const STAYS = {
   donostia1: { city: 'donostia',  checkinDay: '2026-11-20', checkinFrom: '15:00', checkinTo: '23:59', checkoutDay: '2026-11-21', checkoutBy: '11:00', access: 15 },
   donostia2: { city: 'donostia',  checkinDay: '2026-11-21', checkinFrom: '14:00', checkinTo: '18:00', checkoutDay: '2026-11-22', checkoutBy: '11:00', access: 12 },
   bilbao:    { city: 'bilbao',    checkinDay: '2026-11-22', checkinFrom: '16:00', checkinTo: '22:00', checkoutDay: '2026-11-23', checkoutBy: '11:00', access: 20 },
-  santander: { city: 'santander', checkinDay: '2026-11-23', checkinFrom: '14:00', checkinTo: '23:30', checkoutDay: '2026-11-24', checkoutBy: '12:00', access: 25 },
+  santander: { city: 'santander', checkinDay: '2026-11-23', checkinFrom: '14:00', checkinTo: '23:00', checkoutDay: '2026-11-24', checkoutBy: '11:00', access: 20 },
   oviedo:    { city: 'oviedo',    checkinDay: '2026-11-24', checkinFrom: '13:00', checkinTo: '23:30', checkoutDay: '2026-11-25', checkoutBy: '11:00', access: 10 },
   coruna:    { city: 'coruna',    checkinDay: '2026-11-25', checkinFrom: '15:00', checkinTo: '23:59', checkoutDay: '2026-11-27', checkoutBy: '11:00', access: 20 },
-  valencia:  { city: 'valencia',  checkinDay: '2026-11-27', checkinFrom: '16:00', checkinTo: '23:30', checkoutDay: '2026-11-28', checkoutBy: '11:00', access: 35 },
+  valencia:  { city: 'valencia',  checkinDay: '2026-11-27', checkinFrom: '15:00', checkinTo: '23:59', checkoutDay: '2026-11-28', checkoutBy: '12:00', access: 25 },
 };
 
 /* Datos fijos de cada trayecto: servicio, paradas y paisajes (sin localizadores).
@@ -149,8 +149,8 @@ const SEED_EVENTS = [
   { id: 'e38', day: '2026-11-23', start: '18:15', end: '19:30', type: 'visit', title: 'Paseo por El Sardinero', city: 'santander' },
   { id: 'e39', day: '2026-11-23', start: '20:30', end: '22:00', type: 'meal', title: 'Rabas: Bodega Cigaleña o Cañadío', city: 'santander' },
   // Mar 24
-  { id: 'e42', day: '2026-11-24', start: '12:00', end: '', type: 'checkout', title: 'Check-out en Santander', stay: 'santander' },
-  { id: 'e43', day: '2026-11-24', start: '12:30', end: '14:45', type: 'visit', title: 'Paseo de Pereda, Centro Botín, Catedral, Mercado de la Esperanza', city: 'santander' },
+  { id: 'e42', day: '2026-11-24', start: '11:00', end: '', type: 'checkout', title: 'Check-out en Santander', stay: 'santander' },
+  { id: 'e43', day: '2026-11-24', start: '11:15', end: '14:45', type: 'visit', title: 'Paseo de Pereda, Centro Botín, Catedral, Mercado de la Esperanza', city: 'santander' },
   { id: 'e44', day: '2026-11-24', start: '15:28', end: '21:01', type: 'train', title: 'Tren a Oviedo (llevar comida)', trip: 't5' },
   { id: 'e46', day: '2026-11-24', start: '21:15', end: '', type: 'checkin', title: 'Check-in en Oviedo', stay: 'oviedo' },
   { id: 'e47', day: '2026-11-24', start: '21:30', end: '23:00', type: 'meal', title: 'Sidrería en la Gascona', city: 'oviedo' },
@@ -169,12 +169,12 @@ const SEED_EVENTS = [
   { id: 'e71', day: '2026-11-27', start: '08:00', end: '', type: 'checkout', title: 'Check-out y taxi al aeropuerto', stay: 'coruna' },
   { id: 'e74', day: '2026-11-27', start: '10:45', end: '12:15', type: 'flight', title: 'Vuelo a Valencia', trip: 'f1' },
   { id: 'e75', day: '2026-11-27', start: '13:00', end: '', type: 'note', title: 'Dejar la mochila en el alojamiento' },
-  { id: 'e77', day: '2026-11-27', start: '16:00', end: '', type: 'checkin', title: 'Check-in en Valencia', stay: 'valencia' },
-  { id: 'e78', day: '2026-11-27', start: '16:15', end: '19:30', type: 'visit', title: 'Lonja, plaza de la Virgen, Catedral, Torres de Serranos', city: 'valencia' },
+  { id: 'e77', day: '2026-11-27', start: '15:10', end: '', type: 'checkin', title: 'Check-in en Valencia', stay: 'valencia' },
+  { id: 'e78', day: '2026-11-27', start: '15:45', end: '19:30', type: 'visit', title: 'Lonja, plaza de la Virgen, Catedral, Torres de Serranos', city: 'valencia' },
   { id: 'e79', day: '2026-11-27', start: '20:30', end: '22:00', type: 'meal', title: 'Bar Pilar o La Pilareta', city: 'valencia' },
   // Sáb 28
-  { id: 'e80', day: '2026-11-28', start: '10:45', end: '', type: 'checkout', title: 'Check-out (dejar la mochila)', stay: 'valencia' },
-  { id: 'e81', day: '2026-11-28', start: '11:00', end: '14:00', type: 'visit', title: 'Mercado Central, Jardín del Turia, Ciudad de las Artes', city: 'valencia' },
+  { id: 'e80', day: '2026-11-28', start: '11:00', end: '', type: 'checkout', title: 'Check-out (dejar la mochila)', stay: 'valencia' },
+  { id: 'e81', day: '2026-11-28', start: '11:15', end: '14:00', type: 'visit', title: 'Mercado Central, Jardín del Turia, Ciudad de las Artes', city: 'valencia' },
   { id: 'e82', day: '2026-11-28', start: '14:00', end: '15:30', type: 'meal', title: 'Menú del día en Russafa', city: 'valencia' },
   { id: 'e83', day: '2026-11-28', start: '16:45', end: '', type: 'note', title: 'Recoger la mochila y comprar cena para el tren' },
   { id: 'e84', day: '2026-11-28', start: '17:45', end: '22:15', type: 'train', title: 'Tren a Vila-seca', trip: 't6' },
