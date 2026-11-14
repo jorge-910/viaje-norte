@@ -40,7 +40,7 @@ const TRIPS = {
     ],
   },
   b1: {
-    operator: 'alsa', dep: { code: 'EAS', city: 'Donostia', station: 'Estación de bus' }, arr: { code: 'BIL', city: 'Bilbao', station: 'Intermodal' },
+    operator: 'alsa', dep: { code: 'EAS', city: 'Donostia', station: 'Estación de bus' }, arr: { code: 'BIO', city: 'Bilbao', station: 'Intermodal' },
     mode: 'bus', from: 'Donostia (estación de autobuses)', to: 'Bilbao Intermodal', service: 'ALSA, línea Irun-Llanes',
     cancel: 'Cambios y anulaciones hasta 2 h antes. Equipaje 20 kg, máximo 2 bultos.',
     depPlace: 'Paseo Federico García Lorca 1', arrPlace: 'Calle Gurtubay 1, San Mamés',
@@ -54,7 +54,7 @@ const TRIPS = {
     ],
   },
   t4: {
-    operator: 'renfe', dep: { code: 'BIL', city: 'Bilbao', station: 'Concordia' }, arr: { code: 'SAN', city: 'Santander', station: 'Estación de tren' },
+    operator: 'renfe', dep: { code: 'BIO', city: 'Bilbao', station: 'Concordia' }, arr: { code: 'SDR', city: 'Santander', station: 'Estación de tren' },
     mode: 'train', from: 'Bilbao Concordia', to: 'Santander', service: 'Regional 71872 (ancho métrico)',
     cancel: 'Abono: anular al menos 2 h antes si no lo usas.',
     route: 'Antigua línea de vía estrecha por las Encartaciones y el oriente de Cantabria.',
@@ -67,7 +67,7 @@ const TRIPS = {
     ],
   },
   t5: {
-    operator: 'renfe', dep: { code: 'SAN', city: 'Santander', station: 'Estación de tren' }, arr: { code: 'OVI', city: 'Oviedo', station: 'Estación de tren' },
+    operator: 'renfe', dep: { code: 'SDR', city: 'Santander', station: 'Estación de tren' }, arr: { code: 'OVD', city: 'Oviedo', station: 'Estación de tren' },
     mode: 'train', from: 'Santander', to: 'Oviedo', service: 'Regional 71852 (ancho métrico)',
     cancel: 'Abono: anular al menos 2 h antes si no lo usas.',
     route: 'La línea de la costa cantábrica. Hay luz hasta cerca de Llanes; después se hace de noche.',
@@ -82,7 +82,7 @@ const TRIPS = {
     ],
   },
   b2: {
-    operator: 'alsa', dep: { code: 'OVI', city: 'Oviedo', station: 'Estación de autobuses' }, arr: { code: 'COR', city: 'A Coruña', station: 'Intermodal' },
+    operator: 'alsa', dep: { code: 'OVD', city: 'Oviedo', station: 'Estación de autobuses' }, arr: { code: 'LCG', city: 'A Coruña', station: 'Intermodal' },
     mode: 'bus', from: 'Oviedo (estación de autobuses)', to: 'A Coruña Intermodal', service: 'ALSA, línea Irun-Santiago (8 paradas)',
     cancel: 'Cambios y anulaciones hasta 24 h antes. Equipaje 20 kg, máximo 2 bultos.',
     depPlace: 'Avenida Pepe Cosmen s/n', arrPlace: 'Avenida da Sardiñeira s/n (a las afueras)',

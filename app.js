@@ -412,6 +412,7 @@ function renderHoy() {
       <div class="countdown" data-cd="${evDate(current, 'end').getTime()}">${countdownHTML(evDate(current, 'end') - n)}</div>
       <div class="hero-meta">para llegar</div>
       <div class="progress"><i style="width:${pct.toFixed(1)}%"></i></div>
+      ${passBtn(current)}
     </div>`;
   }
   if (next) {
@@ -422,6 +423,7 @@ function renderHoy() {
       <div class="hero-meta">${esc(next.start)}${evSub(next) ? ' · ' + esc(evSub(next)) : ''}</div>
       <div class="countdown" data-cd="${evDate(next).getTime()}">${countdownHTML(evDate(next) - n)}</div>
       ${leave ? `<div class="hero-leave">${leave}</div>` : ''}
+      ${passBtn(next)}
     </div>`;
   } else if (!current) {
     html += `<div class="hero"><div class="hero-label">Viaje terminado</div><div class="hero-title">No quedan eventos pendientes.</div></div>`;
@@ -441,6 +443,7 @@ function renderHoy() {
   html += `<div style="margin-top:10px">${timelineHTML(day, inTrip)}</div>`;
   return html;
 }
+const passBtn = e => isTransport(e) && e.trip ? `<button class="btn btn--glass hero-pass" data-pass="${e.id}">${ICON.ticket}Billete</button>` : '';
 function leaveInfo(e) {
   if (!isTransport(e)) return '';
   const co = state.events.find(x => x.day === e.day && x.type === 'checkout' && toMin(x.start) <= toMin(e.start));
@@ -550,8 +553,6 @@ function renderTrayectos() {
 }
 
 /* ---------- Tarjeta de billete (tipo Wallet) ---------- */
-const openCards = new Set();
-let justOpened = null;        // solo la tarjeta recién abierta se anima
 const LOGOS = {
   monbus: '<img class="tk-logo" src="logos/monbus.svg" alt="Monbus">',
   alsa: '<img class="tk-logo" src="logos/alsa.svg" alt="ALSA">',
@@ -559,6 +560,7 @@ const LOGOS = {
   volotea: '<span class="tk-brand">Volotea</span>',
 };
 const ICON = {
+  ticket: '<svg viewBox="0 0 24 24"><path d="M4 7h16v3a2 2 0 0 0 0 4v3H4v-3a2 2 0 0 0 0-4z"/><path d="M14 7v10" stroke-dasharray="2 2"/></svg>',
   ref: '<svg viewBox="0 0 24 24"><rect x="3.5" y="6" width="17" height="12" rx="2.5"/><rect x="8.5" y="9" width="7" height="6" rx="1.2"/><path d="M10.5 15v1.5M13.5 15v1.5"/></svg>',
   seat: '<svg viewBox="0 0 24 24"><path d="M7 3.5c1.5 0 2 1 2.3 2.5l1.2 6.5h6a2 2 0 0 1 0 4H9.8a2 2 0 0 1-2-1.7L6.2 6.5"/><path d="M9 20.5h8"/></svg>',
   coach: '<svg viewBox="0 0 24 24"><path d="M3.5 16.5V9.5a2 2 0 0 1 2-2h8.5a6.5 6.5 0 0 1 6.5 6.5v2.5z"/><path d="M14 7.5l3.5 5h3"/></svg>',
@@ -572,25 +574,29 @@ function tkEnd(side, stop, time) {
       <div class="tk-time">${esc(time)}</div>
     </div>`;
 }
-function ticketCard(e) {
+function tkStops(e) {
   const t = tripOf(e);
-  const open = openCards.has(e.id);
-  const day = new Date(e.day + 'T12:00:00');
-  const date = `${day.getDate()} ${day.toLocaleDateString('es-ES', { month: 'short' }).replace('.', '').toUpperCase()}`;
-  const dep = t.dep || { code: '', city: t.from, station: '' }, arr = t.arr || { code: '', city: t.to, station: '' };
-  const route = `<button class="tk-route" data-card="${e.id}" aria-expanded="${open}" aria-label="${open ? 'Plegar' : 'Desplegar'} billete ${esc(t.from)} → ${esc(t.to)}">
-      ${tkEnd('from', dep, e.start)}${ARROW}${tkEnd('to', arr, e.end)}
-    </button>`;
+  return { t, dep: t.dep || { code: '', city: t.from, station: '' }, arr: t.arr || { code: '', city: t.to, station: '' } };
+}
+/* Lista de Billetes: tarjeta plegada con Tarjeta y Abrir PDF. */
+function ticketCard(e) {
+  const { t, dep, arr } = tkStops(e);
   const pdfBtn = PRIVATE && t.pdf ? pdfLink(t.pdf, 'Abrir PDF', 'btn tk-paper-btn', `${dep.city} → ${arr.city}`) : '';
-  if (!open) {
-    return `<article class="tk">
-      ${route}
+  return `<article class="tk">
+      <button class="tk-route" data-pass="${e.id}" aria-label="Ver tarjeta ${esc(dep.city)} → ${esc(arr.city)}">
+        ${tkEnd('from', dep, e.start)}${ARROW}${tkEnd('to', arr, e.end)}
+      </button>
       <div class="tk-actions">
-        <button class="btn" data-card="${e.id}">Tarjeta</button>
+        <button class="btn" data-pass="${e.id}">Tarjeta</button>
         ${pdfBtn || `<span class="tk-when">${fmtDay(e.day)}</span>`}
       </div>
     </article>`;
-  }
+}
+/* Tarjeta completa (tipo Wallet), en una hoja que se abre encima de la pantalla. */
+function passCard(e) {
+  const { t, dep, arr } = tkStops(e);
+  const day = new Date(e.day + 'T12:00:00');
+  const date = `${day.getDate()} ${day.toLocaleDateString('es-ES', { month: 'short' }).replace('.', '').toUpperCase()}`;
   const qr = PRIVATE && t.qr && FILE_URLS[t.qr];
   const third = t.mode === 'flight'
     ? { icon: ICON.flight, label: 'Vuelo', value: (t.service || '').replace(/^Volotea\s*/, '') }
@@ -600,17 +606,34 @@ function ticketCard(e) {
       <div class="tk-cell">${ICON.seat}<b>Asiento</b><span>${esc(t.seatNo || (t.mode === 'flight' ? 'Embarque' : '—'))}</span></div>
       <div class="tk-cell">${third.icon}<b>${third.label}</b><span>${esc(third.value)}</span></div>
     </div>` : '';
-  const anim = justOpened === e.id ? ' tk--anim' : '';
-  return `<article class="tk tk--open${anim}">
+  return `<article class="tk tk--pass">
       <div class="tk-head">${LOGOS[t.operator] || `<span class="tk-brand">${esc(t.service || '')}</span>`}<span class="tk-date">${date}</span></div>
-      ${route}
+      <div class="tk-route tk-route--static">${tkEnd('from', dep, e.start)}${ARROW}${tkEnd('to', arr, e.end)}</div>
       ${qr ? `<div class="tk-qr"><img src="${qr}" alt="Código del billete"></div>` : PRIVATE ? `<p class="tk-noqr">${t.mode === 'flight' ? 'La tarjeta de embarque llega con el check-in online.' : 'Sin código: usa el PDF.'}</p>` : ''}
       ${info}
       ${PRIVATE ? '' : `<p class="tk-noqr">Importa tus datos privados para ver el código, el localizador y el asiento.</p>`}
-      ${pdfBtn ? `<div class="tk-pdf">${pdfBtn}</div>` : ''}
       ${PRIVATE && t.pending ? `<p class="tk-cond sev-warn">Datos del billete pendientes: falta el PDF.</p>` : ''}
       <p class="tk-cond">${esc(t.service || '')}${t.ticket ? ` · Billete ${esc(t.ticket)}` : ''}. ${esc(t.cancel || '')}</p>
     </article>`;
+}
+function openPass(id) {
+  const e = state.events.find(x => x.id === id);
+  if (!e) return;
+  const { dep, arr } = tkStops(e);
+  const p = $('#pass');
+  p.innerHTML = `<div class="pass-sheet" role="document">
+      <header class="pass-bar">
+        <span class="pass-title">${esc(dep.city)} → ${esc(arr.city)}</span>
+        <button class="pass-close" data-pass-close aria-label="Cerrar"><span><svg viewBox="0 0 24 24"><path d="M7 7l10 10M17 7 7 17"/></svg></span></button>
+      </header>
+      ${passCard(e)}
+    </div>`;
+  p.hidden = false; document.body.classList.add('no-scroll');
+  p.querySelector('.pass-close').focus({ preventScroll: true });
+}
+function closePass() {
+  const p = $('#pass'); p.hidden = true; p.innerHTML = '';
+  document.body.classList.remove('no-scroll');
 }
 
 /* ---------- Pantalla: Billetes y reservas ---------- */
@@ -830,12 +853,8 @@ $('#view').addEventListener('click', e => {
   }
   const pdf = t.closest('[data-pdf]');
   if (pdf) { openPdf(pdf.dataset.pdf, pdf.dataset.title); return; }
-  const card = t.closest('[data-card]');
-  if (card) {
-    const id = card.dataset.card;
-    if (openCards.has(id)) { openCards.delete(id); justOpened = null; } else { openCards.add(id); justOpened = id; }
-    render(); justOpened = null; return;
-  }
+  const pass = t.closest('[data-pass]');
+  if (pass) { openPass(pass.dataset.pass); return; }
   const copy = t.closest('[data-copy]');
   if (copy) {
     const v = copy.dataset.copy;
@@ -896,12 +915,17 @@ $('#sheet').addEventListener('click', e => {
 });
 $('#sheet').addEventListener('input', e => { if (['f-title', 'f-type', 'f-note'].includes(e.target.id)) previewEdit(); });
 $('#backdrop').addEventListener('click', closeSheet);
+$('#pass').addEventListener('click', e => {
+  if (e.target.closest('[data-pass-close]') || e.target === $('#pass')) { closePass(); return; }
+  const c = e.target.closest('[data-copy]');
+  if (c && c.dataset.copy) { const v = c.dataset.copy; (navigator.clipboard ? navigator.clipboard.writeText(v) : Promise.reject()).then(() => toast(`Copiado: ${v}`), () => toast(v)); }
+});
 $('#viewer').addEventListener('click', e => {
   const a = e.target.closest('[data-viewer]');
   if (a && a.dataset.viewer === 'close') closePdf();
   if (a && a.dataset.viewer === 'share') sharePdf();
 });
-document.addEventListener('keydown', e => { if (e.key !== 'Escape') return; if (!$('#viewer').hidden) closePdf(); else if (editing) closeSheet(); });
+document.addEventListener('keydown', e => { if (e.key !== 'Escape') return; if (!$('#viewer').hidden) closePdf(); else if (!$('#pass').hidden) closePass(); else if (editing) closeSheet(); });
 $('#importFile').addEventListener('change', e => { if (e.target.files[0]) importJSON(e.target.files[0]); e.target.value = ''; });
 
 /* Cuentas atrás: cada segundo; repinta la pantalla entera cada minuto. */

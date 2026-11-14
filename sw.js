@@ -1,6 +1,6 @@
 /* Service worker: guarda la app para usarla sin conexión. Los PDF y los QR no pasan por aquí:
    se importan con el JSON privado y viven en IndexedDB, solo en el dispositivo. */
-const CACHE = 'ruta-norte-v5';
+const CACHE = 'ruta-norte-v6';
 const SHELL = ['./', 'index.html', 'apple.css', 'app.css', 'app.js', 'data.js', 'engine.js', 'manifest.webmanifest', 'icons/icon.svg', 'icons/icon-180.png', 'icons/icon-192.png', 'icons/icon-512.png',
   'logos/monbus.svg', 'logos/alsa.svg', 'logos/renfe.svg', 'vendor/pdfjs/pdf.min.js', 'vendor/pdfjs/pdf.worker.min.js'];
 

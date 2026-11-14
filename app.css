@@ -39,6 +39,8 @@
   --tk-logo-h: 1.75rem;
   --tk-qr: min(100%, 15rem);
   --tk-arrow: 2.25rem;
+  --pass-x: 1.875rem;            /* círculo de cerrar de la hoja (30 pt, como iOS) */
+  --pass-scrim: rgba(0,0,0,.55);
 }
 
 body {
@@ -385,6 +387,8 @@ h2:first-child { margin-top: var(--sp-2); }
   transition: transform var(--dur-press) var(--ease-out);
 }
 .tk-route:active { transform: scale(.99); }
+.tk-route--static { cursor: default; }
+.tk-route--static:active { transform: none; }
 .tk-end { min-width: 0; }
 .tk-end--to { text-align: left; justify-self: end; }
 .tk-place { font-size: var(--fs-footnote); line-height: 1.3; color: var(--label-2); letter-spacing: var(--tr-small); }
@@ -396,8 +400,6 @@ h2:first-child { margin-top: var(--sp-2); }
 .tk-when { text-align: center; color: var(--label-2); font-size: var(--fs-subhead); }
 .tk-paper-btn { background: var(--tk-paper); color: var(--accent); }
 
-.tk--anim { animation: tk-in var(--dur-base) var(--ease-ios); }
-@keyframes tk-in { from { opacity: 0; transform: translateY(calc(-1 * var(--sp-2))); } }
 .tk-head { display: flex; align-items: center; justify-content: space-between; gap: var(--sp-3); margin-bottom: var(--sp-6); }
 .tk-logo { height: var(--tk-logo-h); width: auto; display: block; }
 .tk-logo--mark { height: calc(var(--tk-logo-h) * .9); }
@@ -419,6 +421,40 @@ button.tk-cell:active { transform: scale(.96); }
 .tk-pdf { margin-top: var(--sp-6); }
 .tk-pdf .btn { width: 100%; }
 .tk-cond { margin: var(--sp-4) 0 0; font-size: var(--fs-footnote); color: var(--label-2); line-height: 1.4; }
+
+/* ---------- Tarjeta en hoja modal (como una hoja de iOS) ---------- */
+.pass {
+  position: fixed; inset: 0; z-index: 80; background: var(--pass-scrim);
+  display: flex; align-items: flex-end; justify-content: center;
+  animation: pass-fade var(--dur-fast) var(--ease-out);
+}
+.pass[hidden] { display: none; }
+.pass-sheet {
+  width: min(100%, 560px); max-height: calc(100dvh - env(safe-area-inset-top) - var(--sp-5));
+  overflow: auto; overscroll-behavior: contain; -webkit-overflow-scrolling: touch;
+  background: var(--bg); border-radius: var(--r-xl) var(--r-xl) 0 0;
+  padding: var(--sp-3) var(--sp-4) calc(env(safe-area-inset-bottom) + var(--sp-5));
+  box-shadow: var(--sh-4);
+  animation: pass-rise var(--dur-base) var(--ease-ios);
+}
+.pass-bar { display: grid; grid-template-columns: var(--tap-min) 1fr var(--tap-min); align-items: center; margin-bottom: var(--sp-3); }
+.pass-title { grid-column: 2; text-align: center; font-size: var(--fs-headline); font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.pass-close {
+  grid-column: 3; justify-self: end; appearance: none; border: 0; cursor: pointer;
+  width: var(--tap-min); height: var(--tap-min); padding: 0; background: none;
+  display: grid; place-items: center; color: var(--label-2);
+  transition: transform var(--dur-press) var(--ease-out);
+}
+.pass-close:active { transform: scale(.9); }
+.pass-close span { width: var(--pass-x); height: var(--pass-x); border-radius: var(--r-pill); background: var(--fill-3); display: grid; place-items: center; }
+.pass-close svg { width: 55%; height: 55%; fill: none; stroke: currentColor; stroke-width: 2.5; stroke-linecap: round; }
+.pass .tk { margin-bottom: 0; }
+@keyframes pass-fade { from { opacity: 0; } }
+@keyframes pass-rise { from { transform: translateY(100%); } }
+
+/* Botón Billete en la tarjeta de Hoy */
+.hero-pass { margin-top: var(--sp-4); }
+.hero-pass svg { width: var(--icon); height: var(--icon); fill: none; stroke: currentColor; stroke-width: 1.75; stroke-linejoin: round; }
 
 /* ---------- Visor de PDF ---------- */
 .no-scroll { overflow: hidden; }
