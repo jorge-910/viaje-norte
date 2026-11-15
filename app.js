@@ -312,6 +312,12 @@ function cityOfDay(day) {
   const firstLeg = eventsOf(day).find(isTransport);
   const leaving = Object.values(STAYS).find(s => s.checkoutDay === day);
   if (day === isoDay(n) && firstLeg && leaving && evDate(firstLeg) > n) return leaving.city;
+  // Transbordo: si ya has llegado a una ciudad de paso (p. ej. Castelló), es esa.
+  if (day === isoDay(n)) {
+    const arrived = eventsOf(day).filter(e => isTransport(e) && evDate(e, 'end') <= n).pop();
+    const to = arrived && tripOf(arrived).toCity;
+    if (to && CITIES[to]) return to;
+  }
   const st = Object.values(STAYS).find(s => s.checkinDay <= day && s.checkoutDay > day);
   if (st) return st.city;
   const last = Object.values(STAYS).find(s => s.checkoutDay === day);
@@ -446,7 +452,9 @@ function renderHoy() {
 const passBtn = e => isTransport(e) && e.trip ? `<button class="btn btn--glass hero-pass" data-pass="${e.id}">${ICON.ticket}Billete</button>` : '';
 function leaveInfo(e) {
   if (!isTransport(e)) return '';
-  const co = state.events.find(x => x.day === e.day && x.type === 'checkout' && toMin(x.start) <= toMin(e.start));
+  const co = state.events.find(x => x.day === e.day && x.type === 'checkout' && toMin(x.start) <= toMin(e.start) &&
+    // Solo si sales del alojamiento hacia este trayecto, no si antes hay otro (p. ej. Valencia → Castelló → Salou).
+    !state.events.some(y => y.day === e.day && y !== e && isTransport(y) && toMin(y.start) >= toMin(x.start) && toMin(y.start) < toMin(e.start)));
   const t = tripOf(e);
   const access = co && STAYS[co.stay] ? STAYS[co.stay].access : null;
   const be = BOARD_BUFFER[e.type];
@@ -557,7 +565,8 @@ const LOGOS = {
   monbus: '<img class="tk-logo" src="logos/monbus.svg" alt="Monbus">',
   alsa: '<img class="tk-logo" src="logos/alsa.svg" alt="ALSA">',
   renfe: '<span class="tk-brand"><img class="tk-logo tk-logo--mark" src="logos/renfe.svg" alt="">Renfe</span>',
-  volotea: '<span class="tk-brand">Volotea</span>',
+  volotea: '<img class="tk-logo" src="logos/volotea.svg" alt="Volotea">',
+  hife: '<img class="tk-logo" src="logos/hife.svg" alt="Hife">',
 };
 const ICON = {
   ticket: '<svg viewBox="0 0 24 24"><path d="M4 7h16v3a2 2 0 0 0 0 4v3H4v-3a2 2 0 0 0 0-4z"/><path d="M14 7v10" stroke-dasharray="2 2"/></svg>',
@@ -644,7 +653,7 @@ function renderBilletes() {
     <div class="row"><span class="ref">${esc(PRIVATE.abono || '')}</span><span class="spacer"></span><button class="btn btn--gray btn--sm" data-copy="${esc(PRIVATE.abono || '')}">Copiar</button></div></div>`;
   html += '<h2>Billetes</h2>';
   html += legs.map(ticketCard).join('');
-  html += `<p class="note">Billetes cancelados, ya no valen: Vila-seca–Zaragoza (20/11), Zaragoza–Vitoria (21/11), Vitoria–Donostia (21/11), A Coruña–Santiago (26/11) y Santiago–Ponferrada (27/11).</p>`;
+  html += `<p class="note">Billetes cancelados, ya no valen: Vila-seca–Zaragoza (20/11), Zaragoza–Vitoria (21/11), Vitoria–Donostia (21/11), A Coruña–Santiago (26/11), Santiago–Ponferrada (27/11) y Valencia–Vila-seca (28/11).</p>`;
   if (!PRIVATE) return html;
   html += '<h2>Alojamientos</h2>';
   html += Object.values(STAYS).map(s => `<div class="card k-checkin">
@@ -688,6 +697,7 @@ function renderAvisos() {
     <li>Billete sin usar: anúlalo al menos 2 h antes de la salida. Con 3 fallos se anula el abono y pierdes la fianza de 20 €.</li>
     <li>Bus Donostia–Bilbao: cambios y anulaciones hasta 2 h antes.</li>
     <li>Bus Oviedo–A Coruña: cambios y anulaciones hasta 24 h antes.</li>
+    <li>Bus Castelló–Salou (Hife): cambios y anulaciones hasta 2 h antes.</li>
     <li>Buses ALSA: 20 kg de equipaje, máximo 2 bultos.</li>
     <li>Volotea: solo bolso de 40x30x20 cm.</li>
     <li>En regionales y buses no hay wifi fiable: lleva datos y trabaja en local.</li>

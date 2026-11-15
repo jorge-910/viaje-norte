@@ -4,7 +4,7 @@
    Visitas, comida, historia y paisajes son orientativos. */
 'use strict';
 
-const SEED_VERSION = 4;
+const SEED_VERSION = 5;
 
 const TRIP = {
   title: 'Ruta Norte',
@@ -107,23 +107,30 @@ const TRIPS = {
     ],
   },
   t6: {
-    operator: 'renfe', dep: { code: 'VLC', city: 'Valencia', station: 'València Nord' }, arr: { code: 'VSC', city: 'Vila-seca', station: 'Estación' },
-    mode: 'train', from: 'Valencia Nord', to: 'Vila-seca', service: 'Regional Exprés 18096',
+    operator: 'renfe', dep: { code: 'VLC', city: 'Valencia', station: 'València Nord' }, arr: { code: 'CDT', city: 'Castelló', station: 'Estación de tren' },
+    mode: 'train', from: 'Valencia Nord', to: 'Castelló', toCity: 'castellon', service: 'Regional 14302',
     cancel: 'Abono: anular al menos 2 h antes si no lo usas.',
-    route: 'El corredor mediterráneo. De noche casi todo el camino.',
+    route: 'El corredor mediterráneo entre huertas y naranjos, con el mar a la derecha a ratos.',
     highlights: [
-      { at: 25, text: 'Silueta del castillo de Sagunt' },
-      { at: 75, text: 'Castelló de la Plana' },
-      { at: 160, text: 'Vinaròs y entrada en Catalunya' },
-      { at: 185, text: 'Delta del Ebro: arrozales a la derecha (de noche)' },
-      { at: 215, text: 'Costa de L\'Ametlla y Cambrils' },
+      { at: 25, text: 'Castillo de Sagunt en lo alto del cerro, a la izquierda' },
+      { at: 45, text: 'Naranjos de la Plana' },
+    ],
+  },
+  b3: {
+    operator: 'hife', dep: { code: 'CDT', city: 'Castelló', station: 'Estación de bus' }, arr: { code: 'SAL', city: 'Salou', station: 'Estación de bus' },
+    mode: 'bus', from: 'Castelló (estación de autobuses)', to: 'Salou', service: 'Hife, con el bono',
+    cancel: 'Cambios y anulaciones hasta 2 h antes. Una maleta de hasta 30 kg en la bodega y equipaje de mano.',
+    depPlace: 'Calle Pintor Oliet 12, junto a la estación de tren', arrPlace: 'Passeig Jaume I 22',
+    route: 'El billete no detalla el recorrido. Anochece hacia las 17:45, así que casi todo el viaje es de noche.',
+    highlights: [
+      { at: 15, text: 'Naranjos de la Plana con la última luz' },
     ],
   },
 };
 
 /* Itinerario editable. tipos: train, bus, flight, checkin, checkout, visit, meal, work, daily, note */
 const SEED_EVENTS = [
-  // Vie 20 (el trabajo y el daily llegan con el JSON privado)
+  // Vie 20: sin trabajo, directamente el bus a Donostia
   { id: 'e101', day: '2026-11-20', start: '15:40', end: '22:50', type: 'bus', title: 'Bus a Donostia (llevar cena)', trip: 'm1' },
   { id: 'e102', day: '2026-11-20', start: '23:10', end: '', type: 'checkin', title: 'Check-in en Donostia (1.ª noche)', stay: 'donostia1' },
   // Sáb 21: día completo en Donostia
@@ -172,12 +179,13 @@ const SEED_EVENTS = [
   { id: 'e77', day: '2026-11-27', start: '15:10', end: '', type: 'checkin', title: 'Check-in en Valencia', stay: 'valencia' },
   { id: 'e78', day: '2026-11-27', start: '15:45', end: '19:30', type: 'visit', title: 'Lonja, plaza de la Virgen, Catedral, Torres de Serranos', city: 'valencia' },
   { id: 'e79', day: '2026-11-27', start: '20:30', end: '22:00', type: 'meal', title: 'Bar Pilar o La Pilareta', city: 'valencia' },
-  // Sáb 28
-  { id: 'e80', day: '2026-11-28', start: '11:00', end: '', type: 'checkout', title: 'Check-out (dejar la mochila)', stay: 'valencia' },
-  { id: 'e81', day: '2026-11-28', start: '11:15', end: '14:00', type: 'visit', title: 'Mercado Central, Jardín del Turia, Ciudad de las Artes', city: 'valencia' },
-  { id: 'e82', day: '2026-11-28', start: '14:00', end: '15:30', type: 'meal', title: 'Menú del día en Russafa', city: 'valencia' },
-  { id: 'e83', day: '2026-11-28', start: '16:45', end: '', type: 'note', title: 'Recoger la mochila y comprar cena para el tren' },
-  { id: 'e84', day: '2026-11-28', start: '17:45', end: '22:15', type: 'train', title: 'Tren a Vila-seca', trip: 't6' },
+  // Sáb 28: solo con el bolso de cabina, así que se lleva encima todo el día
+  { id: 'e80', day: '2026-11-28', start: '11:00', end: '', type: 'checkout', title: 'Check-out en Valencia', stay: 'valencia' },
+  { id: 'e81', day: '2026-11-28', start: '11:30', end: '12:45', type: 'visit', title: 'Mercado Central y Lonja de la Seda', city: 'valencia' },
+  { id: 'e82', day: '2026-11-28', start: '12:45', end: '13:45', type: 'meal', title: 'Comer cerca de la estación: Russafa o el Mercado Central', city: 'valencia' },
+  { id: 'e84', day: '2026-11-28', start: '14:10', end: '15:15', type: 'train', title: 'Tren a Castelló', trip: 't6' },
+  { id: 'e85', day: '2026-11-28', start: '15:25', end: '16:45', type: 'visit', title: 'Parc Ribalta, plaza Mayor, Fadrí y Concatedral', city: 'castellon' },
+  { id: 'e86', day: '2026-11-28', start: '17:05', end: '20:10', type: 'bus', title: 'Bus a Salou', trip: 'b3' },
 ];
 
 /* Las tareas (pagos, avisos a alojamientos y al equipo) llegan con el JSON privado. */
@@ -273,6 +281,20 @@ const CITIES = {
       'La Lonja de la Seda, del siglo XV, es Patrimonio de la Humanidad.',
       'Desde hace más de mil años, el Tribunal de las Aguas se reúne los jueves a mediodía en la puerta de los Apóstoles de la Catedral.',
       'La Catedral guarda un cáliz que la tradición identifica con el Santo Grial.',
+    ],
+  },
+  castellon: {
+    name: 'Castelló', days: 'Sáb 28, transbordo de 15:15 a 17:05', stay: [],
+    see: ['Parc Ribalta (junto a la estación)', 'Plaza Mayor', 'El Fadrí (campanario)', 'Concatedral de Santa María', 'Mercat Central por fuera (abre por la mañana)', 'Plaza de la Paz y Teatro Principal'],
+    eat: ['Merienda en alguna cafetería de la plaza Mayor', 'Comprar la cena para el bus antes de volver a la estación'],
+    history: [
+      'En 1251 Jaime I autorizó trasladar la villa desde el cerro de la Magdalena hasta la llanura, donde está hoy.',
+      'La Concatedral de Santa María se destruyó en 1936 y se reconstruyó después de la guerra.',
+    ],
+    facts: [
+      'El Fadrí es un campanario exento, separado de la iglesia. "Fadrí" significa soltero en valenciano.',
+      'Las fiestas de la Magdalena recuerdan cada año la bajada desde el cerro. Su símbolo son las gaiatas, monumentos iluminados.',
+      'La estación de autobuses está junto a la de tren: el transbordo se hace a pie en pocos minutos.',
     ],
   },
 };
